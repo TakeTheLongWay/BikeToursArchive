@@ -38,25 +38,66 @@ function remainingKm(goalKm, doneKm) {
     return Math.max(0, num(goalKm, 0) - num(doneKm, 0));
 }
 
+function getTodayDateOnly() {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
 function getRemainingDaysUntilYearEnd(year) {
     const targetYear = Number(year);
     if (!Number.isInteger(targetYear)) return 0;
 
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const today = getTodayDateOnly();
+    const yearStart = new Date(targetYear, 0, 1);
     const yearEnd = new Date(targetYear, 11, 31);
 
     if (today > yearEnd) {
         return 0;
     }
 
+    if (today < yearStart) {
+        const msPerDay = 24 * 60 * 60 * 1000;
+        return Math.floor((yearEnd - yearStart) / msPerDay) + 1;
+    }
+
     const msPerDay = 24 * 60 * 60 * 1000;
     return Math.floor((yearEnd - today) / msPerDay) + 1;
 }
 
-function dailyKmNeeded(goalKm, doneKm, year) {
+function getRemainingDaysUntilMonthEnd(year, month) {
+    const targetYear = Number(year);
+    const targetMonth = Number(month);
+
+    if (!Number.isInteger(targetYear) || !Number.isInteger(targetMonth) || targetMonth < 1 || targetMonth > 12) {
+        return 0;
+    }
+
+    const today = getTodayDateOnly();
+    const monthStart = new Date(targetYear, targetMonth - 1, 1);
+    const monthEnd = new Date(targetYear, targetMonth, 0);
+
+    if (today > monthEnd) {
+        return 0;
+    }
+
+    const msPerDay = 24 * 60 * 60 * 1000;
+
+    if (today < monthStart) {
+        return Math.floor((monthEnd - monthStart) / msPerDay) + 1;
+    }
+
+    return Math.floor((monthEnd - today) / msPerDay) + 1;
+}
+
+function getRemainingDaysUntilWeekEnd() {
+    const today = getTodayDateOnly();
+    const day = today.getDay(); // 0=So, 1=Mo, ..., 6=Sa
+    const daysUntilSunday = day === 0 ? 0 : 7 - day;
+    return daysUntilSunday + 1; // inkl. heute
+}
+
+function dailyKmNeeded(goalKm, doneKm, remainingDays) {
     const restKm = remainingKm(goalKm, doneKm);
-    const remainingDays = getRemainingDaysUntilYearEnd(year);
 
     if (restKm <= 0 || remainingDays <= 0) {
         return 0;
@@ -105,7 +146,8 @@ async function loadData() {
 
         const goalYearPerDayEl = document.getElementById("goalYearPerDay");
         if (goalYearPerDayEl) {
-            const yearDailyKm = dailyKmNeeded(goalYear, doneYear, year);
+            const remainingYearDays = getRemainingDaysUntilYearEnd(year);
+            const yearDailyKm = dailyKmNeeded(goalYear, doneYear, remainingYearDays);
             goalYearPerDayEl.textContent = formatDailyKm(yearDailyKm);
         }
 
@@ -116,13 +158,27 @@ async function loadData() {
         document.getElementById("goalMonthTotal").textContent = goalMonth.toFixed(0);
         document.getElementById("goalMonthRest").textContent = restText(goalMonth, doneMonth);
 
-        // --- NEU: ANZEIGE WOCHE (Montag bis heute) ---
+        const goalMonthPerDayEl = document.getElementById("goalMonthPerDay");
+        if (goalMonthPerDayEl) {
+            const remainingMonthDays = getRemainingDaysUntilMonthEnd(year, month);
+            const monthDailyKm = dailyKmNeeded(goalMonth, doneMonth, remainingMonthDays);
+            goalMonthPerDayEl.textContent = formatDailyKm(monthDailyKm);
+        }
+
+        // Anzeige Woche (Montag bis heute)
         const goalWeek = num(goals.weekly, 0);
         const doneWeek = num(stats.week_km, 0);
         if (document.getElementById("goalWeekDone")) {
             document.getElementById("goalWeekDone").textContent = doneWeek.toFixed(0);
             document.getElementById("goalWeekTotal").textContent = goalWeek.toFixed(0);
             document.getElementById("goalWeekRest").textContent = restText(goalWeek, doneWeek);
+
+            const goalWeekPerDayEl = document.getElementById("goalWeekPerDay");
+            if (goalWeekPerDayEl) {
+                const remainingWeekDays = getRemainingDaysUntilWeekEnd();
+                const weekDailyKm = dailyKmNeeded(goalWeek, doneWeek, remainingWeekDays);
+                goalWeekPerDayEl.textContent = formatDailyKm(weekDailyKm);
+            }
         }
 
         // --- UI AKTUALISIEREN: RECHTE BOX (STATS) ---
@@ -137,7 +193,6 @@ async function loadData() {
 
         // --- UI AKTUALISIEREN: TOUREN-TABELLE ---
         renderTours(Array.isArray(tours) ? tours : []);
-
     } catch (e) {
         console.error("Fehler beim Laden der Dashboard-Daten:", e);
     }
@@ -198,9 +253,7 @@ async function uploadGpxFiles(files) {
             alert(`Import abgeschlossen (${result.imported_count}).\nEinige Dateien konnten nicht importiert werden.`);
         }
 
-        // Nach Import alles neu laden (aktualisiert auch den Wochen-Rahmen!)
         await loadData();
-
     } catch (e) {
         console.error("Import Fehler:", e);
         alert("Import fehlgeschlagen (Netzwerk/Server).");
