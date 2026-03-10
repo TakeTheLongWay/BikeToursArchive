@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="utf-8">
+    <title>Streckentagebuch Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script defer src="{{ url_for('static', filename='dashboard.js') }}"></script>
+</head>
+<body>
+
+<h1 class="title">Streckentagebuch Dashboard</h1>
+
+<div id="MainMenuDashboard">
+    <button id="btnImport">Import</button>
+    <button id="btnEditGoals" onclick="window.location.href='{{ url_for('mygoals') }}'">Ziele Bearbeiten</button>
+</div>
+
+<div id="filterBox" style="display:flex; justify-content:space-between; align-items:flex-start; gap:16px;">
+
+    <div id="goalSummaryBox" style="display:flex; gap:12px; flex-wrap:wrap;">
+
+        <div class="goalFrame">
+            <div class="goalFrameTitle">Jahr</div>
+            <div class="goalFrameValue">
+                <span id="goalYearDone">0</span> / <span id="goalYearTotal">0</span> km
+            </div>
+            <div class="goalFrameRest">
+                Rest: <span id="goalYearRest">0</span> km | <span id="goalYearPerDay">0,0</span> km/Tag
+            </div>
+        </div>
+
+        <div class="goalFrame">
+            <div class="goalFrameTitle">Monat</div>
+            <div class="goalFrameValue">
+                <span id="goalMonthDone">0</span> / <span id="goalMonthTotal">0</span> km
+            </div>
+            <div class="goalFrameRest">Rest: <span id="goalMonthRest">0</span> km</div>
+        </div>
+
+        <div class="goalFrame">
+            <div class="goalFrameTitle">Woche (Mo-Heute)</div>
+            <div class="goalFrameValue">
+                <span id="goalWeekDone">0</span> / <span id="goalWeekTotal">0</span> km
+            </div>
+            <div class="goalFrameRest">Rest: <span id="goalWeekRest">0</span> km</div>
+        </div>
+    </div>
+
+    <div id="filterControls" style="display:flex; gap:12px; background:#fff; padding:15px; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,0.05);">
+        <div>
+            <label>Typ</label><br>
+            <select id="filterType">
+                <option value="Alle">Alle</option>
+                <option value="cycling">Radfahren</option>
+                <option value="per pedes">Wandern</option>
+            </select>
+        </div>
+        <div>
+            <label>Monat</label><br>
+            <select id="filterMonth">
+                {% for m in range(1, 13) %}
+                    <option value="{{ m }}" {% if m == current_month %}selected{% endif %}>{{ m }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label>Jahr</label><br>
+            <select id="filterYear">
+                {% for y in range(current_year - 2, current_year + 2) %}
+                    <option value="{{ y }}" {% if y == current_year %}selected{% endif %}>{{ y }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+</div>
+
+<div id="mainLayout">
+    <div id="leftColumn">
+        <h2>Touren</h2>
+        <table id="detailTable">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Datum</th>
+                    <th>Dauer</th>
+                    <th style="text-align:right;">km</th>
+                </tr>
+            </thead>
+            <tbody id="tourTableBody">
+                </tbody>
+        </table>
+    </div>
+
+    <div id="rightColumn">
+        <div id="statsBox">
+            <h3 id="statsMonthTitle">Monat: </h3>
+            <table id="statsTable">
+                <tr><td>Gesamt km</td><td id="statsMonthKm">0</td></tr>
+                <tr><td>Anzahl Fahrten</td><td id="statsMonthCount">0</td></tr>
+            </table>
+
+            <h3 id="statsYearTitle">Gesamtleistung Jahr: </h3>
+            <table id="statsYearTable">
+                <tr><td>Gesamt km</td><td id="statsYearKm">0</td></tr>
+                <tr><td>Anzahl Fahrten</td><td id="statsYearCount">0</td></tr>
+            </table>
+        </div>
+    </div>
+</div>
+
+<input type="file" id="fileInput" accept=".gpx" multiple style="display:none;">
+
+</body>
+</html>

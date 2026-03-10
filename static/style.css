@@ -1,0 +1,215 @@
+/* static/style.css - Version 00.00.10 (Layout Fix) */
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background-color: #f4f7fc;
+    color: #333;
+    margin: 0;
+    padding: 20px;
+}
+
+h1.title {
+    text-align: center;
+    color: #1C3F75;
+    margin-bottom: 30px;
+}
+
+h2, h3 {
+    color: #1C3F75;
+}
+
+/* Hauptmenü-Buttons oben */
+#MainMenuDashboard {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin-bottom: 30px;
+}
+
+button {
+    background-color: #4B77BE;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+button:hover {
+    background-color: #1C3F75;
+}
+
+.btn-secondary {
+    background-color: #8c9eff; /* Helleres Blau für sekundäre Aktionen */
+    color: white;
+    padding: 8px 16px;
+    border-radius: 6px;
+    text-decoration: none;
+    display: inline-block;
+}
+.btn-secondary:hover {
+    background-color: #5c6bc0;
+}
+
+/*
+   LAYOUT-ANPASSUNG FÜR ZIELE-BOXEN
+   Hier sorgen wir dafür, dass 3 Boxen nebeneinander passen.
+*/
+
+#filterBox {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 30px;
+    flex-wrap: wrap; /* Erlaubt Umbruch auf sehr kleinen Bildschirmen */
+}
+
+#goalSummaryBox {
+    display: flex;
+    gap: 10px; /* Etwas kleinerer Abstand zwischen den Boxen */
+    flex: 1 1 auto; /* Nimmt den verfügbaren Platz links ein */
+    /* Wir versuchen, Umbruch zu vermeiden, solange Platz ist */
+    flex-wrap: wrap;
+}
+
+.goalFrame {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    /* WICHTIG: Padding reduziert, damit sie schmaler sind */
+    padding: 15px 10px;
+    text-align: center;
+    /* Flex-Basis sorgt für eine gute Grundbreite, lässt sich aber stauchen */
+    flex: 1 1 180px;
+    /* Optional: Damit sie nicht zu breit werden, wenn viel Platz ist */
+    max-width: 220px;
+    border-left: 4px solid #4B77BE; /* Ein kleiner farbiger Akzent links */
+}
+
+.goalFrameTitle {
+    font-size: 14px;
+    color: #666;
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+
+.goalFrameValue {
+    font-size: 18px;
+    color: #1C3F75;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+
+.goalFrameRest {
+    font-size: 12px;
+    color: #888;
+}
+
+
+/* Filter-Controls rechts */
+#filterControls {
+    display: flex;
+    gap: 12px;
+    background: #fff;
+    padding: 15px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    flex-shrink: 0; /* Verhindert, dass die Filterbox zusammengedrückt wird */
+}
+
+#filterControls label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #666;
+    margin-bottom: 4px;
+    display: block;
+}
+
+select {
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid #c0d3e9;
+    background-color: #f9fbfd;
+    font-size: 14px;
+    color: #333;
+    outline: none;
+}
+
+/* Hauptlayout (Zweispaltig) */
+#mainLayout {
+    display: flex;
+    gap: 30px;
+    align-items: flex-start;
+}
+
+#leftColumn {
+    flex: 2; /* Linke Spalte (Tabelle) bekommt mehr Platz */
+    background: #fff;
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+#rightColumn {
+    flex: 1; /* Rechte Spalte (Stats) bekommt weniger Platz */
+    max-width: 350px;
+}
+
+/* Tabellen-Styles */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+}
+
+th, td {
+    text-align: left;
+    padding: 12px;
+    border-bottom: 1px solid #e0e6f0;
+}
+
+th {
+    color: #1C3F75;
+    font-weight: 600;
+}
+
+#tourTableBody tr:hover {
+    background-color: #f4f7fc;
+}
+
+/* Stats Box rechts */
+#statsBox {
+    background: #fff;
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+#statsBox h3 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    font-size: 18px;
+}
+
+#statsTable td, #statsYearTable td {
+    padding: 8px 0;
+    border-bottom: 1px solid #eee;
+}
+
+#statsTable tr:last-child td, #statsYearTable tr:last-child td {
+    border-bottom: none;
+}
+
+#statsTable td:last-child, #statsYearTable td:last-child {
+    text-align: right;
+    font-weight: 600;
+    color: #1C3F75;
+}
+
+#statsYearTitle {
+    margin-top: 30px;
+}

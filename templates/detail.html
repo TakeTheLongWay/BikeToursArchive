@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="utf-8">
+    <title>Tour-Detail</title>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}">
+    <script defer src="{{ url_for('static', filename='vendor/leaflet/leaflet.js') }}"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        /* Vollbreite: wir nutzen die vorhandenen Layout-Styles weiter, überschreiben aber auf dieser Seite auf 1-Spalte. */
+        #mainLayout {
+            display: block !important;
+            width: 100% !important;
+        }
+
+        #leftColumn {
+            width: 100% !important;
+            max-width: 100% !important;
+        }
+
+        /* Karte benötigt eine definierte Höhe, sonst bleibt der Bereich leer */
+        #map {
+            height: 620px;
+            min-height: 620px;
+            width: 100%;
+        }
+
+        /* Einzeilige Tour-Zeile über der Karte */
+        .tour-metrics-line {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 14px;
+            align-items: center;
+            background: #fff;
+            padding: 10px 18px;
+            border-radius: 10px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+            margin-bottom: 12px;
+            border-left: 4px solid #4B77BE;
+        }
+
+        .metric-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .metric-label {
+            font-size: 13px;
+            color: #666;
+            font-weight: 500;
+        }
+
+        .metric-value {
+            font-size: 15px;
+            color: #1C3F75;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+
+    <div style="margin-bottom: 15px;">
+        <a href="{{ url_for('index') }}" class="btn-secondary" style="text-decoration: none; font-size: 14px;">← Zurück zum Dashboard</a>
+    </div>
+
+    <div class="tour-metrics-line">
+        <div class="metric-item">
+            <span class="metric-label">Name:</span>
+            <span class="metric-value">{{ tour.name }}</span>
+        </div>
+        <div class="metric-item" style="margin-left: 10px; padding-left: 14px; border-left: 1px solid #eee;">
+            <span class="metric-label">Datum:</span>
+            <span class="metric-value">{{ tour.date_display }}</span>
+        </div>
+        <div class="metric-item" style="margin-left: 10px; padding-left: 14px; border-left: 1px solid #eee;">
+            <span class="metric-label">Dauer:</span>
+            <span class="metric-value">{{ tour.duration_hm }} h</span>
+        </div>
+        <div class="metric-item" style="margin-left: 10px; padding-left: 14px; border-left: 1px solid #eee;">
+            <span class="metric-label">Distanz:</span>
+            <span class="metric-value">{{ tour.distance_km }} km</span>
+        </div>
+    </div>
+
+    <div id="mainLayout">
+        <div id="map"></div>
+        <div id="elevationChart">
+            <canvas id="myChart"></canvas>
+        </div>
+    </div>
+
+    <script>
+    window.onload = function() {
+        const coords = {{ tour.coords|tojson }};
+        const hasCoords = coords.length > 0;
+
+        const map = L.map('map');
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: "&copy; OpenStreetMap contributors"
+        }).addTo(map);
+
+        if (!hasCoords) {
+            setTimeout(() => map.invalidateSize(), 0);
+            return;
+        }
+
+        // Performance: sehr lange Tracks auf max. 5000 Punkte reduzieren
+        let drawCoords = coords;
+        const maxPoints = 5000;
+
+        if (coords.length > maxPoints) {
+            const step = Math.ceil(coords.length / maxPoints);
+            const reduced = [];
+            for (let i = 0; i < coords.length; i += step) {
+                reduced.push(coords[i]);
+            }
+            const last = coords[coords.length - 1];
+            if (
+                reduced.length === 0 ||
+                reduced[reduced.length - 1][0] !== last[0] ||
+                reduced[reduced.length - 1][1] !== last[1]
+            ) {
+                reduced.push(last);
+            }
+            drawCoords = reduced;
+        }
+
+        // Vorbereitung der Daten für das Diagramm
+        const elevationData = drawCoords.map(p => p[2]);
+        const labels = drawCoords.map((_, index) => index);
+
+        // --- Diagramm zeichnen ---
+        const ctx = document.getElementById('myChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Höhe (m)',
+                    data: elevationData,
+                    borderColor: '#4B77BE',
+                    backgroundColor: 'rgba(75, 119, 190, 0.2)',
+                    fill: true,
+                    borderWidth: 2,
+                    pointRadius: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: { display: false },
+                    y: {
+                        beginAtZero: false,
+                        title: { display: true, text: 'Höhe in Metern' }
+                    }
+                }
+            }
+        });
+
+        // Karte zeichnen
+        const poly = L.polyline(drawCoords, { weight: 4 }).addTo(map);
+
+        setTimeout(() => {
+            map.invalidateSize();
+            map.fitBounds(poly.getBounds(), { padding: [20, 20] });
+        }, 0);
+    }
+    </script>
+</body>
+</html>
