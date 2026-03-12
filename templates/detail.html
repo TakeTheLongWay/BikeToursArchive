@@ -12,7 +12,6 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <style>
-        /* Vollbreite: wir nutzen die vorhandenen Layout-Styles weiter, überschreiben aber auf dieser Seite auf 1-Spalte. */
         #mainLayout {
             display: block !important;
             width: 100% !important;
@@ -23,14 +22,12 @@
             max-width: 100% !important;
         }
 
-        /* Karte benötigt eine definierte Höhe, sonst bleibt der Bereich leer */
         #map {
             height: 620px;
             min-height: 620px;
             width: 100%;
         }
 
-        /* Einzeilige Tour-Zeile über der Karte */
         .tour-metrics-line {
             display: flex;
             flex-wrap: wrap;
@@ -72,7 +69,13 @@
     <div class="tour-metrics-line">
         <div class="metric-item">
             <span class="metric-label">Name:</span>
-            <span class="metric-value">{{ tour.name }}</span>
+            <span
+                id="tourNameValue"
+                class="metric-value"
+                title="Doppelklick zum Bearbeiten"
+                data-tour-id="{{ tour.id }}"
+                tabindex="0"
+            >{{ tour.name }}</span>
         </div>
         <div class="metric-item" style="margin-left: 10px; padding-left: 14px; border-left: 1px solid #eee;">
             <span class="metric-label">Datum:</span>
@@ -100,78 +103,197 @@
         const coords = {{ tour.coords|tojson }};
         const hasCoords = coords.length > 0;
 
-        const map = L.map('map');
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        const map = L.map("map");
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
             attribution: "&copy; OpenStreetMap contributors"
         }).addTo(map);
 
         if (!hasCoords) {
             setTimeout(() => map.invalidateSize(), 0);
+        } else {
+            let drawCoords = coords;
+            const maxPoints = 5000;
+
+            if (coords.length > maxPoints) {
+                const step = Math.ceil(coords.length / maxPoints);
+                const reduced = [];
+
+                for (let i = 0; i < coords.length; i += step) {
+                    reduced.push(coords[i]);
+                }
+
+                const last = coords[coords.length - 1];
+                if (
+                    reduced.length === 0 ||
+                    reduced[reduced.length - 1][0] !== last[0] ||
+                    reduced[reduced.length - 1][1] !== last[1]
+                ) {
+                    reduced.push(last);
+                }
+
+                drawCoords = reduced;
+            }
+
+            const elevationData = drawCoords.map(p => p[2]);
+            const labels = drawCoords.map((_, index) => index);
+
+            const ctx = document.getElementById("myChart").getContext("2d");
+            new Chart(ctx, {
+                type: "line",
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: "Höhe (m)",
+                        data: elevationData,
+                        borderColor: "#4B77BE",
+                        backgroundColor: "rgba(75, 119, 190, 0.2)",
+                        fill: true,
+                        borderWidth: 2,
+                        pointRadius: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { display: false },
+                        y: {
+                            beginAtZero: false,
+                            title: { display: true, text: "Höhe in Metern" }
+                        }
+                    }
+                }
+            });
+
+            const poly = L.polyline(drawCoords, { weight: 4 }).addTo(map);
+
+            setTimeout(() => {
+                map.invalidateSize();
+                map.fitBounds(poly.getBounds(), { padding: [20, 20] });
+            }, 0);
+        }
+
+        const tourNameEl = document.getElementById("tourNameValue");
+
+        if (!tourNameEl) {
             return;
         }
 
-        // Performance: sehr lange Tracks auf max. 5000 Punkte reduzieren
-        let drawCoords = coords;
-        const maxPoints = 5000;
+        let originalName = tourNameEl.textContent.trim();
+        let isEditing = false;
+        let isSaving = false;
 
-        if (coords.length > maxPoints) {
-            const step = Math.ceil(coords.length / maxPoints);
-            const reduced = [];
-            for (let i = 0; i < coords.length; i += step) {
-                reduced.push(coords[i]);
-            }
-            const last = coords[coords.length - 1];
-            if (
-                reduced.length === 0 ||
-                reduced[reduced.length - 1][0] !== last[0] ||
-                reduced[reduced.length - 1][1] !== last[1]
-            ) {
-                reduced.push(last);
-            }
-            drawCoords = reduced;
+        function placeCaretAtEnd(el) {
+            const range = document.createRange();
+            const selection = window.getSelection();
+            range.selectNodeContents(el);
+            range.collapse(false);
+            selection.removeAllRanges();
+            selection.addRange(range);
         }
 
-        // Vorbereitung der Daten für das Diagramm
-        const elevationData = drawCoords.map(p => p[2]);
-        const labels = drawCoords.map((_, index) => index);
+        function startEditing() {
+            if (isEditing || isSaving) {
+                return;
+            }
 
-        // --- Diagramm zeichnen ---
-        const ctx = document.getElementById('myChart').getContext('2d');
-        new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: labels,
-                datasets: [{
-                    label: 'Höhe (m)',
-                    data: elevationData,
-                    borderColor: '#4B77BE',
-                    backgroundColor: 'rgba(75, 119, 190, 0.2)',
-                    fill: true,
-                    borderWidth: 2,
-                    pointRadius: 0
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    x: { display: false },
-                    y: {
-                        beginAtZero: false,
-                        title: { display: true, text: 'Höhe in Metern' }
-                    }
+            isEditing = true;
+            originalName = tourNameEl.textContent.trim();
+            tourNameEl.contentEditable = "true";
+            tourNameEl.focus();
+            placeCaretAtEnd(tourNameEl);
+        }
+
+        async function saveName() {
+            if (!isEditing || isSaving) {
+                return;
+            }
+
+            const newName = tourNameEl.textContent.trim();
+
+            if (!newName) {
+                tourNameEl.textContent = originalName;
+                tourNameEl.contentEditable = "false";
+                isEditing = false;
+                return;
+            }
+
+            if (newName === originalName) {
+                tourNameEl.contentEditable = "false";
+                isEditing = false;
+                return;
+            }
+
+            isSaving = true;
+
+            try {
+                const response = await fetch(`/api/tours/${tourNameEl.dataset.tourId}/name`, {
+                    method: "PUT",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({ name: newName })
+                });
+
+                const result = await response.json();
+
+                if (!response.ok || result.status !== "ok") {
+                    throw new Error(result.message || "Speichern fehlgeschlagen.");
                 }
+
+                originalName = result.name;
+                tourNameEl.textContent = result.name;
+
+                localStorage.setItem("tour_name_updated", JSON.stringify({
+                    tourId: Number(result.tour_id),
+                    name: result.name,
+                    updatedAt: Date.now()
+                }));
+            } catch (error) {
+                alert(error.message || "Der Tourname konnte nicht gespeichert werden.");
+                tourNameEl.textContent = originalName;
+            } finally {
+                tourNameEl.contentEditable = "false";
+                isEditing = false;
+                isSaving = false;
+            }
+        }
+
+        function cancelEditing() {
+            if (!isEditing || isSaving) {
+                return;
+            }
+
+            tourNameEl.textContent = originalName;
+            tourNameEl.contentEditable = "false";
+            isEditing = false;
+        }
+
+        tourNameEl.addEventListener("dblclick", (event) => {
+            event.preventDefault();
+            startEditing();
+        });
+
+        tourNameEl.addEventListener("keydown", async (event) => {
+            if (!isEditing) {
+                return;
+            }
+
+            if (event.key === "Enter") {
+                event.preventDefault();
+                await saveName();
+                tourNameEl.blur();
+            } else if (event.key === "Escape") {
+                event.preventDefault();
+                cancelEditing();
+                tourNameEl.blur();
             }
         });
 
-        // Karte zeichnen
-        const poly = L.polyline(drawCoords, { weight: 4 }).addTo(map);
-
-        setTimeout(() => {
-            map.invalidateSize();
-            map.fitBounds(poly.getBounds(), { padding: [20, 20] });
-        }, 0);
-    }
+        tourNameEl.addEventListener("blur", async () => {
+            await saveName();
+        });
+    };
     </script>
 </body>
 </html>
