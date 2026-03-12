@@ -6,13 +6,11 @@ import gpxpy
 from flask import Flask, jsonify, render_template, request
 from werkzeug.utils import secure_filename
 
-# Wichtig: Diese Funktionen müssen in deiner database.py vorhanden sein
 from database import ensure_database, mysql_connection_wrapper
 from importer import process_gpx_file
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
 
-# Pfad zu den GPX-Dateien im MySQL-Upload-Verzeichnis
 GPX_BASE_PATH = r"C:\ProgramData\MySQL\MySQL Server 8.0\Uploads"
 UPLOAD_TMP_DIR = os.path.join(os.path.dirname(__file__), "uploads_tmp")
 os.makedirs(UPLOAD_TMP_DIR, exist_ok=True)
@@ -20,10 +18,8 @@ os.makedirs(UPLOAD_TMP_DIR, exist_ok=True)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 app.logger.setLevel(logging.INFO)
 
-# Datenbank beim Start prüfen
 ensure_database()
 
-# Mapping der Ziel-Schlüssel (Dashboard -> Datenbank)
 GOAL_UI_TO_DB_KEY = {
     "annual": "goal_km_year",
     "monthly": "monthly",
@@ -33,15 +29,13 @@ GOAL_UI_TO_DB_KEY = {
 
 
 def get_db_type(filter_type):
-    """ Übersetzt Dashboard-Filter in DB-Typen (activity_type). """
-    if filter_type == 'Alle' or not filter_type:
+    """Übersetzt Dashboard-Filter in DB-Typen (activity_type)."""
+    if filter_type == "Alle" or not filter_type:
         return None
-    if filter_type == 'per pedes':
-        return 'hiking'
+    if filter_type == "per pedes":
+        return "hiking"
     return filter_type
 
-
-# --- ROUTES ---
 
 @app.route("/")
 def index():
@@ -66,17 +60,20 @@ def api_get_goals(cursor):
 @app.route("/api/goals", methods=["PUT"])
 @mysql_connection_wrapper
 def api_update_goal(cursor):
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     key = data.get("key")
     val = data.get("value")
     db_key = GOAL_UI_TO_DB_KEY.get(key)
+
     if not db_key:
         return jsonify({"status": "error", "message": f"Ungültiger Key: {key}"}), 400
+
     try:
         val_f = float(val)
         cursor.execute(
-            "INSERT INTO goals (key_name, value) VALUES (%s, %s) ON DUPLICATE KEY UPDATE value = %s",
-            (db_key, val_f, val_f)
+            "INSERT INTO goals (key_name, value) VALUES (%s, %s) "
+            "ON DUPLICATE KEY UPDATE value = %s",
+            (db_key, val_f, val_f),
         )
         return jsonify({"status": "ok"})
     except Exception as e:
@@ -92,7 +89,10 @@ def api_tours(cursor):
         month = request.args.get("month")
         year = request.args.get("year")
 
-        sql = "SELECT activity_id, activity_name, activity_date, elapsed_time_s, distance_km FROM activities WHERE 1=1"
+        sql = (
+            "SELECT activity_id, activity_name, activity_date, elapsed_time_s, distance_km "
+            "FROM activities WHERE 1=1"
+        )
         params = []
 
         if db_type:
@@ -115,16 +115,18 @@ def api_tours(cursor):
             date_disp = dt.strftime("%d.%m.%Y") if isinstance(dt, (date, datetime)) else str(dt)
             dur_s = r["elapsed_time_s"] or 0
             hh, mm = int(dur_s // 3600), int((dur_s % 3600) // 60)
+
             out.append({
                 "id": r["activity_id"],
                 "name": r["activity_name"],
                 "date_display": date_disp,
                 "duration_hm": f"{hh:02d}:{mm:02d}",
-                "distance_km": round(float(r["distance_km"] or 0), 2)
+                "distance_km": round(float(r["distance_km"] or 0), 2),
             })
+
         return jsonify(out)
     except Exception as e:
-        print(f"FEHLER in api_tours: {e}")
+        app.logger.error("FEHLER in api_tours: %s", e)
         return jsonify({"error": str(e)}), 500
 
 
@@ -139,32 +141,50 @@ def api_stats(cursor):
 
         try:
             month_i, year_i = int(month), int(year)
-        except:
+        except Exception:
             month_i, year_i = date.today().month, date.today().year
 
         today = date.today()
         start_of_week = today - timedelta(days=today.weekday())
 
-        sql_m = "SELECT COALESCE(SUM(distance_km),0) AS km, COUNT(*) AS cnt FROM activities WHERE YEAR(activity_date) = %s AND MONTH(activity_date) = %s"
+        sql_m = (
+            "SELECT COALESCE(SUM(distance_km),0) AS km, COUNT(*) AS cnt "
+            "FROM activities WHERE YEAR(activity_date) = %s AND MONTH(activity_date) = %s"
+        )
         params_m = [year_i, month_i]
-        if db_type: sql_m += " AND activity_type = %s"; params_m.append(db_type)
+        if db_type:
+            sql_m += " AND activity_type = %s"
+            params_m.append(db_type)
         cursor.execute(sql_m, params_m)
         row_m = cursor.fetchone()
 
-        sql_y = "SELECT COALESCE(SUM(distance_km),0) AS km, COUNT(*) AS cnt FROM activities WHERE YEAR(activity_date) = %s"
+        sql_y = (
+            "SELECT COALESCE(SUM(distance_km),0) AS km, COUNT(*) AS cnt "
+            "FROM activities WHERE YEAR(activity_date) = %s"
+        )
         params_y = [year_i]
-        if db_type: sql_y += " AND activity_type = %s"; params_y.append(db_type)
+        if db_type:
+            sql_y += " AND activity_type = %s"
+            params_y.append(db_type)
         cursor.execute(sql_y, params_y)
         row_y = cursor.fetchone()
 
-        sql_w = "SELECT COALESCE(SUM(distance_km),0) AS km, COUNT(*) AS cnt FROM activities WHERE activity_date >= %s"
+        sql_w = (
+            "SELECT COALESCE(SUM(distance_km),0) AS km, COUNT(*) AS cnt "
+            "FROM activities WHERE activity_date >= %s"
+        )
         params_w = [start_of_week]
-        if db_type: sql_w += " AND activity_type = %s"; params_w.append(db_type)
+        if db_type:
+            sql_w += " AND activity_type = %s"
+            params_w.append(db_type)
         cursor.execute(sql_w, params_w)
         row_w = cursor.fetchone()
 
-        month_names = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober",
-                       "November", "Dezember"]
+        month_names = [
+            "Januar", "Februar", "März", "April", "Mai", "Juni",
+            "Juli", "August", "September", "Oktober", "November", "Dezember",
+        ]
+
         return jsonify({
             "month_name": month_names[month_i - 1] if 1 <= month_i <= 12 else "",
             "month_km": float(row_m["km"]),
@@ -172,18 +192,50 @@ def api_stats(cursor):
             "year_km": float(row_y["km"]),
             "year_count": row_y["cnt"],
             "week_km": float(row_w["km"]),
-            "week_count": row_w["cnt"]
+            "week_count": row_w["cnt"],
         })
     except Exception as e:
-        print(f"FEHLER in api_stats: {e}")
+        app.logger.error("FEHLER in api_stats: %s", e)
         return jsonify({"error": str(e)}), 500
 
 
-# --- DIESE FUNKTION WAR ZUVOR VERLOREN GEGANGEN ---
+@app.route("/api/tours/<int:tour_id>/name", methods=["PUT"])
+@mysql_connection_wrapper
+def api_update_tour_name(cursor, tour_id):
+    try:
+        data = request.get_json(silent=True) or {}
+        new_name = str(data.get("name", "")).strip()
+
+        if not new_name:
+            return jsonify({"status": "error", "message": "Der Tourname darf nicht leer sein."}), 400
+
+        if len(new_name) > 255:
+            return jsonify({"status": "error", "message": "Der Tourname ist zu lang."}), 400
+
+        cursor.execute("SELECT activity_id FROM activities WHERE activity_id = %s", (tour_id,))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"status": "error", "message": "Tour nicht gefunden."}), 404
+
+        cursor.execute(
+            "UPDATE activities SET activity_name = %s WHERE activity_id = %s",
+            (new_name, tour_id),
+        )
+
+        return jsonify({
+            "status": "ok",
+            "tour_id": tour_id,
+            "name": new_name,
+        })
+    except Exception as e:
+        app.logger.error("FEHLER beim Umbenennen der Tour %s: %s", tour_id, e)
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
 @app.route("/import", methods=["POST"])
 @mysql_connection_wrapper
 def import_route(cursor):
-    """ Nimmt hochgeladene GPX-Dateien entgegen und verarbeitet sie. """
+    """Nimmt hochgeladene GPX-Dateien entgegen und verarbeitet sie."""
     if "files" not in request.files:
         return jsonify({"ok": False, "error": "Keine Dateien gefunden."}), 400
 
@@ -194,18 +246,24 @@ def import_route(cursor):
     for f in files:
         if not f.filename:
             continue
+
         filename = secure_filename(f.filename)
         tmp_path = os.path.join(UPLOAD_TMP_DIR, filename)
+
         try:
             f.save(tmp_path)
-            # Nutzt deinen importer.py
             activity_id = process_gpx_file(tmp_path)
             imported_ids.append(activity_id)
         except Exception as e:
             app.logger.error("Fehler beim Import von %s: %s", filename, e)
             errors.append({"filename": filename, "error": str(e)})
 
-    return jsonify({"ok": True, "imported_count": len(imported_ids), "imported_ids": imported_ids, "errors": errors})
+    return jsonify({
+        "ok": True,
+        "imported_count": len(imported_ids),
+        "imported_ids": imported_ids,
+        "errors": errors,
+    })
 
 
 @app.route("/tour/<int:tour_id>")
@@ -213,10 +271,11 @@ def import_route(cursor):
 def tour_detail(cursor, tour_id):
     cursor.execute("SELECT * FROM activities WHERE activity_id = %s", (tour_id,))
     row = cursor.fetchone()
-    if not row: return "Tour nicht gefunden", 404
+
+    if not row:
+        return "Tour nicht gefunden", 404
 
     filename = row.get("filename")
-    # Nutzt build_gpx_path Logik
     gpx_path = os.path.join(GPX_BASE_PATH, filename.replace("/", os.sep)) if filename else ""
 
     coords = []
@@ -233,7 +292,7 @@ def tour_detail(cursor, tour_id):
         "distance_km": round(float(row["distance_km"] or 0), 2),
         "date_display": dt.strftime("%d.%m.%Y") if isinstance(dt, (date, datetime)) else str(dt),
         "duration_hm": f"{hh:02d}:{mm:02d}",
-        "coords": coords
+        "coords": coords,
     }
     return render_template("detail.html", tour=tour_data)
 
@@ -248,7 +307,7 @@ def load_gpx_coords(file_path):
                     for point in segment.points:
                         alt = point.elevation if point.elevation is not None else 0.0
                         coords.append([point.latitude, point.longitude, alt])
-    except:
+    except Exception:
         pass
     return coords
 
