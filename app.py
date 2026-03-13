@@ -279,8 +279,9 @@ def tour_detail(cursor, tour_id):
     gpx_path = os.path.join(GPX_BASE_PATH, filename.replace("/", os.sep)) if filename else ""
 
     coords = []
+    total_ascent_m = 0
     if gpx_path and os.path.exists(gpx_path):
-        coords = load_gpx_coords(gpx_path)
+        coords, total_ascent_m = load_gpx_data(gpx_path)
 
     dt = row.get("activity_date")
     dur = row.get("elapsed_time_s") or 0
@@ -292,24 +293,39 @@ def tour_detail(cursor, tour_id):
         "distance_km": round(float(row["distance_km"] or 0), 2),
         "date_display": dt.strftime("%d.%m.%Y") if isinstance(dt, (date, datetime)) else str(dt),
         "duration_hm": f"{hh:02d}:{mm:02d}",
+        "total_ascent_m": int(round(total_ascent_m)),
         "coords": coords,
     }
     return render_template("detail.html", tour=tour_data)
 
 
-def load_gpx_coords(file_path):
+def load_gpx_data(file_path):
     coords = []
+    total_ascent_m = 0.0
+    previous_elevation = None
+
     try:
         with open(file_path, "r", encoding="utf-8") as f:
             gpx = gpxpy.parse(f)
+
             for track in gpx.tracks:
                 for segment in track.segments:
+                    previous_elevation = None
+
                     for point in segment.points:
-                        alt = point.elevation if point.elevation is not None else 0.0
-                        coords.append([point.latitude, point.longitude, alt])
+                        elevation = point.elevation if point.elevation is not None else 0.0
+                        coords.append([point.latitude, point.longitude, elevation])
+
+                        if previous_elevation is not None:
+                            elevation_gain = elevation - previous_elevation
+                            if elevation_gain > 0:
+                                total_ascent_m += elevation_gain
+
+                        previous_elevation = elevation
     except Exception:
         pass
-    return coords
+
+    return coords, total_ascent_m
 
 
 if __name__ == "__main__":
