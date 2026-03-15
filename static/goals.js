@@ -1,10 +1,3 @@
-// static/goals.js
-//
-// Anforderungen:
-// - Nur annual ist editierbar
-// - Beim Speichern von annual werden monthly/weekly/daily neu berechnet, angezeigt und gespeichert
-// - Dashboard soll automatisch aktualisieren -> localStorage.goals_updated setzen
-
 const GOAL_UI_TO_DB_KEY = {
     annual: "goal_km_year",
     monthly: "monthly",
@@ -26,10 +19,9 @@ function isLeapYear(year) {
  * Regel: ISO week count = ISO-Wochennummer von 28. Dezember.
  */
 function isoWeeksInYear(year) {
-    const d = new Date(Date.UTC(year, 11, 28)); // 28. Dez
-    // ISO week number:
-    const dayNum = (d.getUTCDay() + 6) % 7; // Mon=0..Sun=6
-    d.setUTCDate(d.getUTCDate() - dayNum + 3); // Donnerstag derselben Woche
+    const d = new Date(Date.UTC(year, 11, 28));
+    const dayNum = (d.getUTCDay() + 6) % 7;
+    d.setUTCDate(d.getUTCDate() - dayNum + 3);
     const firstThursday = new Date(Date.UTC(d.getUTCFullYear(), 0, 4));
     const firstDayNum = (firstThursday.getUTCDay() + 6) % 7;
     firstThursday.setUTCDate(firstThursday.getUTCDate() - firstDayNum + 3);
@@ -41,26 +33,12 @@ function isoWeeksInYear(year) {
 function toUiGoals(raw) {
     const src = raw && typeof raw === "object" ? raw : {};
 
-    // Wenn UI-Keys vorhanden sind, verwenden
-    const hasUiKeys = ["annual", "monthly", "weekly", "daily"].some(
-        (k) => Object.prototype.hasOwnProperty.call(src, k)
-    );
-
-    if (hasUiKeys) {
-        return {
-            annual: num(src.annual, 0),
-            monthly: num(src.monthly, 0),
-            weekly: num(src.weekly, 0),
-            daily: num(src.daily, 0),
-        };
-    }
-
-    // Sonst: DB-Keys -> UI
+    // Vorrang für kanonische DB-Keys; annual bleibt nur Fallback für Altbestand
     return {
-        annual: num(src[GOAL_UI_TO_DB_KEY.annual], 0),
-        monthly: num(src[GOAL_UI_TO_DB_KEY.monthly], 0),
-        weekly: num(src[GOAL_UI_TO_DB_KEY.weekly], 0),
-        daily: num(src[GOAL_UI_TO_DB_KEY.daily], 0),
+        annual: num(src.goal_km_year, num(src.annual, 0)),
+        monthly: num(src.monthly, 0),
+        weekly: num(src.weekly, 0),
+        daily: num(src.daily, 0),
     };
 }
 
@@ -86,10 +64,14 @@ async function loadGoals() {
             const value = goalsUi[key] !== undefined ? num(goalsUi[key], 0).toFixed(2) : "0.00";
 
             const display = item.querySelector("[data-display]");
-            const input = item.querySelector("[data-input]"); // existiert nur bei annual
+            const input = item.querySelector("[data-input]");
 
-            if (display) display.textContent = value;
-            if (input) input.value = value;
+            if (display) {
+                display.textContent = value;
+            }
+            if (input) {
+                input.value = value;
+            }
         });
     } catch (e) {
         console.error("[goals] Load error", e);
@@ -121,10 +103,10 @@ function toggleAnnualEditMode(item, button) {
         button.textContent = "Speichern";
         button.style.backgroundColor = "#d9534f";
         input.focus();
+        input.select();
         return;
     }
 
-    // Speichern
     saveAnnualAndDerived(input.value, item, button);
 }
 
@@ -148,10 +130,13 @@ async function putGoal(dbKey, value) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ key: dbKey, value: value }),
     });
+
     const data = await resp.json();
+
     if (!resp.ok || data.status !== "ok") {
         throw new Error(data?.message || String(resp.status));
     }
+
     return data;
 }
 
@@ -165,28 +150,22 @@ async function saveAnnualAndDerived(rawValue, annualItem, button) {
 
     const year = new Date().getFullYear();
     const days = isLeapYear(year) ? 366 : 365;
-    const weeks = isoWeeksInYear(year); // 52 oder 53
+    const weeks = isoWeeksInYear(year);
 
     const monthly = annual / 12.0;
     const weekly = annual / weeks;
     const daily = annual / days;
 
     try {
-        // 1) Speichern: annual + derived (robust, in definierter Reihenfolge)
         await putGoal(GOAL_UI_TO_DB_KEY.annual, annual);
         await putGoal(GOAL_UI_TO_DB_KEY.monthly, monthly);
         await putGoal(GOAL_UI_TO_DB_KEY.weekly, weekly);
         await putGoal(GOAL_UI_TO_DB_KEY.daily, daily);
 
-        // 2) UI aktualisieren (sauber: neu vom Server laden)
         await loadGoals();
-
-        // 3) Editmode schließen
         closeAnnualEditMode(annualItem, button);
 
-        // 4) Dashboard aktualisieren (andere Tabs / nach Rückkehr)
         localStorage.setItem("goals_updated", String(Date.now()));
-
     } catch (e) {
         console.error("[goals] Save error", e);
         alert("Speichern fehlgeschlagen: " + (e?.message || String(e)));

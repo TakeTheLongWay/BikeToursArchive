@@ -13,8 +13,13 @@ function num(val, fallback = 0) {
 
 function monthNameFromValue(monthVal) {
     const m = Number(monthVal);
-    const names = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
-    if (Number.isInteger(m) && m >= 1 && m <= 12) return names[m - 1];
+    const names = [
+        "Januar", "Februar", "März", "April", "Mai", "Juni",
+        "Juli", "August", "September", "Oktober", "November", "Dezember"
+    ];
+    if (Number.isInteger(m) && m >= 1 && m <= 12) {
+        return names[m - 1];
+    }
     return "";
 }
 
@@ -26,7 +31,87 @@ function restText(goalKm, doneKm) {
     if (diff >= 0) {
         return diff.toFixed(0);
     }
+
     return `Übererfüllt ${Math.abs(diff).toFixed(0)}`;
+}
+
+function remainingKm(goalKm, doneKm) {
+    return Math.max(0, num(goalKm, 0) - num(doneKm, 0));
+}
+
+function getTodayDateOnly() {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
+function getRemainingDaysUntilYearEnd(year) {
+    const targetYear = Number(year);
+    if (!Number.isInteger(targetYear)) {
+        return 0;
+    }
+
+    const today = getTodayDateOnly();
+    const yearStart = new Date(targetYear, 0, 1);
+    const yearEnd = new Date(targetYear, 11, 31);
+    const msPerDay = 24 * 60 * 60 * 1000;
+
+    if (today > yearEnd) {
+        return 0;
+    }
+
+    if (today < yearStart) {
+        return Math.floor((yearEnd - yearStart) / msPerDay) + 1;
+    }
+
+    return Math.floor((yearEnd - today) / msPerDay) + 1;
+}
+
+function getRemainingDaysUntilMonthEnd(year, month) {
+    const targetYear = Number(year);
+    const targetMonth = Number(month);
+
+    if (!Number.isInteger(targetYear) || !Number.isInteger(targetMonth) || targetMonth < 1 || targetMonth > 12) {
+        return 0;
+    }
+
+    const today = getTodayDateOnly();
+    const monthStart = new Date(targetYear, targetMonth - 1, 1);
+    const monthEnd = new Date(targetYear, targetMonth, 0);
+    const msPerDay = 24 * 60 * 60 * 1000;
+
+    if (today > monthEnd) {
+        return 0;
+    }
+
+    if (today < monthStart) {
+        return Math.floor((monthEnd - monthStart) / msPerDay) + 1;
+    }
+
+    return Math.floor((monthEnd - today) / msPerDay) + 1;
+}
+
+function getRemainingDaysUntilWeekEnd(referenceDate = null) {
+    const baseDate = referenceDate instanceof Date ? referenceDate : getTodayDateOnly();
+    const day = baseDate.getDay(); // 0=So, 1=Mo, ..., 6=Sa
+    const daysUntilSunday = day === 0 ? 0 : 7 - day;
+    return daysUntilSunday + 1; // inkl. heute
+}
+
+function dailyKmNeeded(goalKm, doneKm, remainingDays) {
+    const restKm = remainingKm(goalKm, doneKm);
+
+    if (restKm <= 0 || remainingDays <= 0) {
+        return 0;
+    }
+
+    return restKm / remainingDays;
+}
+
+function formatDailyKm(value) {
+    return num(value, 0).toLocaleString("de-DE", {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1
+    });
 }
 
 function updateTourNameInTable(tourId, newName) {
@@ -60,18 +145,40 @@ async function loadData() {
         document.getElementById("goalYearTotal").textContent = goalYear.toFixed(0);
         document.getElementById("goalYearRest").textContent = restText(goalYear, doneYear);
 
+        const goalYearPerDayEl = document.getElementById("goalYearPerDay");
+        if (goalYearPerDayEl) {
+            const remainingYearDays = getRemainingDaysUntilYearEnd(year);
+            const yearDailyKm = dailyKmNeeded(goalYear, doneYear, remainingYearDays);
+            goalYearPerDayEl.textContent = formatDailyKm(yearDailyKm);
+        }
+
         const goalMonth = num(goals.monthly, 0);
         const doneMonth = num(stats.month_km, 0);
         document.getElementById("goalMonthDone").textContent = doneMonth.toFixed(0);
         document.getElementById("goalMonthTotal").textContent = goalMonth.toFixed(0);
         document.getElementById("goalMonthRest").textContent = restText(goalMonth, doneMonth);
 
+        const goalMonthPerDayEl = document.getElementById("goalMonthPerDay");
+        if (goalMonthPerDayEl) {
+            const remainingMonthDays = getRemainingDaysUntilMonthEnd(year, month);
+            const monthDailyKm = dailyKmNeeded(goalMonth, doneMonth, remainingMonthDays);
+            goalMonthPerDayEl.textContent = formatDailyKm(monthDailyKm);
+        }
+
         const goalWeek = num(goals.weekly, 0);
         const doneWeek = num(stats.week_km, 0);
+
         if (document.getElementById("goalWeekDone")) {
             document.getElementById("goalWeekDone").textContent = doneWeek.toFixed(0);
             document.getElementById("goalWeekTotal").textContent = goalWeek.toFixed(0);
             document.getElementById("goalWeekRest").textContent = restText(goalWeek, doneWeek);
+
+            const goalWeekPerDayEl = document.getElementById("goalWeekPerDay");
+            if (goalWeekPerDayEl) {
+                const remainingWeekDays = getRemainingDaysUntilWeekEnd();
+                const weekDailyKm = dailyKmNeeded(goalWeek, doneWeek, remainingWeekDays);
+                goalWeekPerDayEl.textContent = formatDailyKm(weekDailyKm);
+            }
         }
 
         const monthName = monthNameFromValue(month);
@@ -98,7 +205,7 @@ function renderTours(tours) {
         return;
     }
 
-    tours.forEach(t => {
+    tours.forEach((t) => {
         const tr = document.createElement("tr");
         tr.style.cursor = "pointer";
         tr.onclick = () => {
@@ -158,7 +265,7 @@ if (btnImport && fileInput) {
     });
 }
 
-[filterType, filterMonth, filterYear].forEach(el => {
+[filterType, filterMonth, filterYear].forEach((el) => {
     if (el) el.addEventListener("change", loadData);
 });
 
