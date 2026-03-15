@@ -1,12 +1,12 @@
 import logging
 import os
-from datetime import datetime, date, timedelta
+from datetime import date, datetime, timedelta
 
-import gpxpy
 from flask import Flask, jsonify, render_template, request
 from werkzeug.utils import secure_filename
 
 from database import ensure_database, mysql_connection_wrapper
+from gpx_utils import load_gpx_data
 from importer import process_gpx_file
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
@@ -28,7 +28,6 @@ GOAL_UI_TO_DB_KEY = {
 }
 
 VALID_GOAL_DB_KEYS = {"goal_km_year", "monthly", "weekly", "daily"}
-LEGACY_GOAL_KEYS = {"annual": "goal_km_year"}
 
 
 def get_db_type(filter_type):
@@ -57,15 +56,13 @@ def api_get_goals(cursor):
     cursor.execute("SELECT key_name, value FROM goals")
     rows = cursor.fetchall() or []
 
-    raw_goals = {r["key_name"]: round(float(r["value"] or 0), 2) for r in rows}
-
+    raw_goals = {row["key_name"]: round(float(row["value"] or 0), 2) for row in rows}
     goals = {
         "goal_km_year": raw_goals.get("goal_km_year", raw_goals.get("annual", 0.0)),
         "monthly": raw_goals.get("monthly", 0.0),
         "weekly": raw_goals.get("weekly", 0.0),
         "daily": raw_goals.get("daily", 0.0),
     }
-
     return jsonify({"status": "ok", "goals": goals})
 
 
@@ -80,7 +77,6 @@ def api_update_goal(cursor):
         return jsonify({"status": "error", "message": "Key fehlt"}), 400
 
     db_key = GOAL_UI_TO_DB_KEY.get(key, key)
-
     if db_key not in VALID_GOAL_DB_KEYS:
         return jsonify({"status": "error", "message": f"Ungültiger Key: {key}"}), 400
 
@@ -96,12 +92,8 @@ def api_update_goal(cursor):
             (db_key, val_f, val_f),
         )
 
-        # Legacy-Key annual mitsynchronisieren, falls Altbestand vorhanden ist
         if db_key == "goal_km_year":
-            cursor.execute(
-                "SELECT COUNT(*) AS cnt FROM goals WHERE key_name = %s",
-                ("annual",),
-            )
+            cursor.execute("SELECT COUNT(*) AS cnt FROM goals WHERE key_name = %s", ("annual",))
             row = cursor.fetchone() or {}
             if row.get("cnt", 0) > 0:
                 cursor.execute(
@@ -110,8 +102,8 @@ def api_update_goal(cursor):
                 )
 
         return jsonify({"status": "ok", "key": db_key, "value": val_f})
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 400
+    except Exception as exc:
+        return jsonify({"status": "error", "message": str(exc)}), 400
 
 
 @app.route("/api/tours")
@@ -143,25 +135,32 @@ def api_tours(cursor):
         cursor.execute(sql, params)
         rows = cursor.fetchall() or []
 
-        out = []
-        for r in rows:
-            dt = r["activity_date"]
-            date_disp = dt.strftime("%d.%m.%Y") if isinstance(dt, (date, datetime)) else str(dt)
-            dur_s = r["elapsed_time_s"] or 0
-            hh, mm = int(dur_s // 3600), int((dur_s % 3600) // 60)
+        tours = []
+        for row in rows:
+            activity_date = row["activity_date"]
+            date_display = (
+                activity_date.strftime("%d.%m.%Y")
+                if isinstance(activity_date, (date, datetime))
+                else str(activity_date)
+            )
+            duration_s = row["elapsed_time_s"] or 0
+            hours = int(duration_s // 3600)
+            minutes = int((duration_s % 3600) // 60)
 
-            out.append({
-                "id": r["activity_id"],
-                "name": r["activity_name"],
-                "date_display": date_disp,
-                "duration_hm": f"{hh:02d}:{mm:02d}",
-                "distance_km": round(float(r["distance_km"] or 0), 2),
-            })
+            tours.append(
+                {
+                    "id": row["activity_id"],
+                    "name": row["activity_name"],
+                    "date_display": date_display,
+                    "duration_hm": f"{hours:02d}:{minutes:02d}",
+                    "distance_km": round(float(row["distance_km"] or 0), 2),
+                }
+            )
 
-        return jsonify(out)
-    except Exception as e:
-        app.logger.error("FEHLER in api_tours: %s", e)
-        return jsonify({"error": str(e)}), 500
+        return jsonify(tours)
+    except Exception as exc:
+        app.logger.error("FEHLER in api_tours: %s", exc)
+        return jsonify({"error": str(exc)}), 500
 
 
 @app.route("/api/stats")
@@ -215,22 +214,34 @@ def api_stats(cursor):
         row_w = cursor.fetchone()
 
         month_names = [
-            "Januar", "Februar", "März", "April", "Mai", "Juni",
-            "Juli", "August", "September", "Oktober", "November", "Dezember",
+            "Januar",
+            "Februar",
+            "März",
+            "April",
+            "Mai",
+            "Juni",
+            "Juli",
+            "August",
+            "September",
+            "Oktober",
+            "November",
+            "Dezember",
         ]
 
-        return jsonify({
-            "month_name": month_names[month_i - 1] if 1 <= month_i <= 12 else "",
-            "month_km": float(row_m["km"]),
-            "month_count": row_m["cnt"],
-            "year_km": float(row_y["km"]),
-            "year_count": row_y["cnt"],
-            "week_km": float(row_w["km"]),
-            "week_count": row_w["cnt"],
-        })
-    except Exception as e:
-        app.logger.error("FEHLER in api_stats: %s", e)
-        return jsonify({"error": str(e)}), 500
+        return jsonify(
+            {
+                "month_name": month_names[month_i - 1] if 1 <= month_i <= 12 else "",
+                "month_km": float(row_m["km"]),
+                "month_count": row_m["cnt"],
+                "year_km": float(row_y["km"]),
+                "year_count": row_y["cnt"],
+                "week_km": float(row_w["km"]),
+                "week_count": row_w["cnt"],
+            }
+        )
+    except Exception as exc:
+        app.logger.error("FEHLER in api_stats: %s", exc)
+        return jsonify({"error": str(exc)}), 500
 
 
 @app.route("/api/tours/<int:tour_id>/name", methods=["PUT"])
@@ -256,20 +267,18 @@ def api_update_tour_name(cursor, tour_id):
             (new_name, tour_id),
         )
 
-        return jsonify({
-            "status": "ok",
-            "tour_id": tour_id,
-            "name": new_name,
-        })
-    except Exception as e:
-        app.logger.error("FEHLER beim Umbenennen der Tour %s: %s", tour_id, e)
-        return jsonify({"status": "error", "message": str(e)}), 500
+        return jsonify({"status": "ok", "tour_id": tour_id, "name": new_name})
+    except Exception as exc:
+        app.logger.error("FEHLER beim Umbenennen der Tour %s: %s", tour_id, exc)
+        return jsonify({"status": "error", "message": str(exc)}), 500
 
 
 @app.route("/import", methods=["POST"])
 @mysql_connection_wrapper
 def import_route(cursor):
     """Nimmt hochgeladene GPX-Dateien entgegen und verarbeitet sie."""
+    del cursor
+
     if "files" not in request.files:
         return jsonify({"ok": False, "error": "Keine Dateien gefunden."}), 400
 
@@ -277,27 +286,29 @@ def import_route(cursor):
     imported_ids = []
     errors = []
 
-    for f in files:
-        if not f.filename:
+    for uploaded_file in files:
+        if not uploaded_file.filename:
             continue
 
-        filename = secure_filename(f.filename)
+        filename = secure_filename(uploaded_file.filename)
         tmp_path = os.path.join(UPLOAD_TMP_DIR, filename)
 
         try:
-            f.save(tmp_path)
+            uploaded_file.save(tmp_path)
             activity_id = process_gpx_file(tmp_path)
             imported_ids.append(activity_id)
-        except Exception as e:
-            app.logger.error("Fehler beim Import von %s: %s", filename, e)
-            errors.append({"filename": filename, "error": str(e)})
+        except Exception as exc:
+            app.logger.error("Fehler beim Import von %s: %s", filename, exc)
+            errors.append({"filename": filename, "error": str(exc)})
 
-    return jsonify({
-        "ok": True,
-        "imported_count": len(imported_ids),
-        "imported_ids": imported_ids,
-        "errors": errors,
-    })
+    return jsonify(
+        {
+            "ok": True,
+            "imported_count": len(imported_ids),
+            "imported_ids": imported_ids,
+            "errors": errors,
+        }
+    )
 
 
 @app.route("/tour/<int:tour_id>")
@@ -317,49 +328,25 @@ def tour_detail(cursor, tour_id):
     if gpx_path and os.path.exists(gpx_path):
         coords, total_ascent_m = load_gpx_data(gpx_path)
 
-    dt = row.get("activity_date")
-    dur = row.get("elapsed_time_s") or 0
-    hh, mm = int(dur // 3600), int((dur % 3600) // 60)
+    activity_date = row.get("activity_date")
+    duration_s = row.get("elapsed_time_s") or 0
+    hours = int(duration_s // 3600)
+    minutes = int((duration_s % 3600) // 60)
 
     tour_data = {
         "id": row["activity_id"],
         "name": row["activity_name"],
         "distance_km": round(float(row["distance_km"] or 0), 2),
-        "date_display": dt.strftime("%d.%m.%Y") if isinstance(dt, (date, datetime)) else str(dt),
-        "duration_hm": f"{hh:02d}:{mm:02d}",
+        "date_display": (
+            activity_date.strftime("%d.%m.%Y")
+            if isinstance(activity_date, (date, datetime))
+            else str(activity_date)
+        ),
+        "duration_hm": f"{hours:02d}:{minutes:02d}",
         "total_ascent_m": int(round(total_ascent_m)),
         "coords": coords,
     }
     return render_template("detail.html", tour=tour_data)
-
-
-def load_gpx_data(file_path):
-    coords = []
-    total_ascent_m = 0.0
-    previous_elevation = None
-
-    try:
-        with open(file_path, "r", encoding="utf-8") as f:
-            gpx = gpxpy.parse(f)
-
-            for track in gpx.tracks:
-                for segment in track.segments:
-                    previous_elevation = None
-
-                    for point in segment.points:
-                        elevation = point.elevation if point.elevation is not None else 0.0
-                        coords.append([point.latitude, point.longitude, elevation])
-
-                        if previous_elevation is not None:
-                            elevation_gain = elevation - previous_elevation
-                            if elevation_gain > 0:
-                                total_ascent_m += elevation_gain
-
-                        previous_elevation = elevation
-    except Exception:
-        pass
-
-    return coords, total_ascent_m
 
 
 if __name__ == "__main__":
