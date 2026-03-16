@@ -6,8 +6,8 @@
 
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 
-    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}">
-    <script defer src="{{ url_for('static', filename='vendor/leaflet/leaflet.js') }}"></script>
+    <link rel="stylesheet" href="{{ url_for('pages.vendor_static', filename='leaflet/leaflet.css') }}">
+    <script defer src="{{ url_for('pages.vendor_static', filename='leaflet/leaflet.js') }}"></script>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
@@ -63,7 +63,7 @@
 <body>
 
     <div style="margin-bottom: 15px;">
-        <a href="{{ url_for('index') }}" class="btn-secondary" style="text-decoration: none; font-size: 14px;">← Zurück zum Dashboard</a>
+        <a href="{{ url_for('pages.index') }}" class="btn-secondary" style="text-decoration: none; font-size: 14px;">← Zurück zum Dashboard</a>
     </div>
 
     <div class="tour-metrics-line">

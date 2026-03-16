@@ -1,17 +1,14 @@
 import os
 import shutil
 
-from database import get_db_connection
-from gpx_utils import parse_gpx
+from ..db.database import get_db_connection
+from .gpx_utils import parse_gpx
 
 TARGET_DIR = r"C:\ProgramData\MySQL\MySQL Server 8.0\Uploads\activities"
 os.makedirs(TARGET_DIR, exist_ok=True)
 
 
 def insert_activity(conn, data: dict) -> int:
-    """
-    Legt einen Datensatz in activities an und gibt activity_id zurück.
-    """
     sql = """
         INSERT INTO activities (
             activity_date,
@@ -59,19 +56,6 @@ def update_filename(conn, activity_id: int, filename: str) -> None:
 
 
 def process_gpx_file(gpx_path: str) -> int:
-    """
-    Importiert eine GPX-Datei:
-    - liest GPX
-    - legt Datensatz in activities an
-    - benennt Datei nach activity_id um
-    - verschiebt Datei ins activities-Verzeichnis
-    - setzt filename (relativ) in DB
-
-    Rückgabewert:
-        activity_id (int)
-    """
-    print(f"Starte GPX-Import: {gpx_path}")
-
     gpx_data = parse_gpx(gpx_path)
 
     conn = get_db_connection()
@@ -85,11 +69,8 @@ def process_gpx_file(gpx_path: str) -> int:
         shutil.copy2(gpx_path, target_path)
         os.remove(gpx_path)
 
-        print(f"Datei verschoben nach: {target_path}")
-
         update_filename(conn, activity_id, new_filename)
 
-        print("GPX-Import erfolgreich abgeschlossen\n")
         return activity_id
     finally:
         conn.close()

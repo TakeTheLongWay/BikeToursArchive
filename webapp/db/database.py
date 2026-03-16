@@ -1,5 +1,6 @@
-import mysql.connector
 from functools import wraps
+
+import mysql.connector
 from flask import jsonify
 
 DB_CONFIG = {
@@ -7,7 +8,7 @@ DB_CONFIG = {
     "password": "hurtzming",
     "host": "127.0.0.1",
     "database": "tourbook",
-    "allow_local_infile": True
+    "allow_local_infile": True,
 }
 
 

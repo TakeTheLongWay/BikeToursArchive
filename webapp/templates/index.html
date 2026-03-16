@@ -12,7 +12,7 @@
 
 <div id="MainMenuDashboard">
     <button id="btnImport">Import</button>
-    <button id="btnEditGoals" onclick="window.location.href='{{ url_for('mygoals') }}'">Ziele</button>
+    <button id="btnEditGoals" onclick="window.location.href='{{ url_for('pages.mygoals') }}'">Ziele Bearbeiten</button>
 </div>
 
 <div id="filterBox" style="display:flex; justify-content:space-between; align-items:flex-start; gap:16px;">
@@ -90,8 +90,7 @@
                     <th style="text-align:right;">km</th>
                 </tr>
             </thead>
-            <tbody id="tourTableBody">
-                </tbody>
+            <tbody id="tourTableBody"></tbody>
         </table>
     </div>
 

@@ -5,9 +5,6 @@ import gpxpy
 
 
 def haversine(lat1, lon1, lat2, lon2):
-    """
-    Berechnet die Distanz zwischen zwei Koordinatenpunkten in Metern.
-    """
     radius_m = 6371000
     phi1 = math.radians(lat1)
     phi2 = math.radians(lat2)
@@ -23,9 +20,6 @@ def haversine(lat1, lon1, lat2, lon2):
 
 
 def parse_gpx(file_path: str) -> dict:
-    """
-    Liest eine GPX-Datei und extrahiert Tourdaten für den Import.
-    """
     with open(file_path, "r", encoding="utf-8") as file_handle:
         gpx = gpxpy.parse(file_handle)
 
@@ -86,11 +80,6 @@ def parse_gpx(file_path: str) -> dict:
 
 
 def load_gpx_data(file_path: str):
-    """
-    Liest eine GPX-Datei für die Detailansicht und liefert:
-    - coords: [[lat, lon, elevation], ...]
-    - total_ascent_m: kumulierter positiver Höhengewinn
-    """
     coords = []
     total_ascent_m = 0.0
 
