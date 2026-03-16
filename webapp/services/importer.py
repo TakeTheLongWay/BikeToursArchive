@@ -1,11 +1,17 @@
 import os
 import shutil
 
+from flask import current_app, has_app_context
+
+from ..config import GPX_IMPORT_TARGET_DIR
 from ..db.database import get_db_connection
 from .gpx_utils import parse_gpx
 
-TARGET_DIR = r"C:\ProgramData\MySQL\MySQL Server 8.0\Uploads\activities"
-os.makedirs(TARGET_DIR, exist_ok=True)
+
+def _get_target_dir():
+    if has_app_context():
+        return current_app.config.get("GPX_IMPORT_TARGET_DIR", GPX_IMPORT_TARGET_DIR)
+    return GPX_IMPORT_TARGET_DIR
 
 
 def insert_activity(conn, data: dict) -> int:
@@ -57,14 +63,15 @@ def update_filename(conn, activity_id: int, filename: str) -> None:
 
 def process_gpx_file(gpx_path: str) -> int:
     gpx_data = parse_gpx(gpx_path)
+    target_dir = _get_target_dir()
+    os.makedirs(target_dir, exist_ok=True)
 
     conn = get_db_connection()
     try:
         activity_id = insert_activity(conn, gpx_data)
 
         new_filename = f"activities/{activity_id}.gpx"
-        target_path = os.path.join(TARGET_DIR, f"{activity_id}.gpx")
-        os.makedirs(TARGET_DIR, exist_ok=True)
+        target_path = os.path.join(target_dir, f"{activity_id}.gpx")
 
         shutil.copy2(gpx_path, target_path)
         os.remove(gpx_path)

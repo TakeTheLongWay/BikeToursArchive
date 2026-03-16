@@ -2,17 +2,11 @@ from datetime import date, timedelta
 
 from flask import Blueprint, current_app, jsonify, request
 
+from ..config import MONTH_NAMES
 from ..db.database import mysql_connection_wrapper
+from ..utils import get_db_type, parse_month_year
 
 stats_bp = Blueprint("stats", __name__)
-
-
-def get_db_type(filter_type):
-    if filter_type == "Alle" or not filter_type:
-        return None
-    if filter_type == "per pedes":
-        return "hiking"
-    return filter_type
 
 
 @stats_bp.route("/api/stats", methods=["GET"])
@@ -24,10 +18,7 @@ def api_stats(cursor):
         month = request.args.get("month")
         year = request.args.get("year")
 
-        try:
-            month_i, year_i = int(month), int(year)
-        except Exception:
-            month_i, year_i = date.today().month, date.today().year
+        month_i, year_i = parse_month_year(month, year)
 
         today = date.today()
         start_of_week = today - timedelta(days=today.weekday())
@@ -65,24 +56,9 @@ def api_stats(cursor):
         cursor.execute(sql_week, params_week)
         row_week = cursor.fetchone()
 
-        month_names = [
-            "Januar",
-            "Februar",
-            "März",
-            "April",
-            "Mai",
-            "Juni",
-            "Juli",
-            "August",
-            "September",
-            "Oktober",
-            "November",
-            "Dezember",
-        ]
-
         return jsonify(
             {
-                "month_name": month_names[month_i - 1] if 1 <= month_i <= 12 else "",
+                "month_name": MONTH_NAMES[month_i - 1] if 1 <= month_i <= 12 else "",
                 "month_km": float(row_month["km"]),
                 "month_count": row_month["cnt"],
                 "year_km": float(row_year["km"]),

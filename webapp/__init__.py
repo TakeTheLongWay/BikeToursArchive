@@ -3,21 +3,19 @@ import os
 
 from flask import Flask
 
+from .config import Config
 from .db.database import ensure_database
 from .routes import goals_bp, imports_bp, pages_bp, stats_bp, tours_bp
 
 
 def create_app():
-    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-
     app = Flask(
         __name__,
         template_folder="templates",
         static_folder="static",
     )
 
-    app.config["GPX_BASE_PATH"] = r"C:\ProgramData\MySQL\MySQL Server 8.0\Uploads"
-    app.config["UPLOAD_TMP_DIR"] = os.path.join(project_root, "uploads_tmp")
+    app.config.from_object(Config)
     os.makedirs(app.config["UPLOAD_TMP_DIR"], exist_ok=True)
 
     logging.basicConfig(

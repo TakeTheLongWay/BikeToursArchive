@@ -3,13 +3,7 @@ from functools import wraps
 import mysql.connector
 from flask import jsonify
 
-DB_CONFIG = {
-    "user": "root",
-    "password": "hurtzming",
-    "host": "127.0.0.1",
-    "database": "tourbook",
-    "allow_local_infile": True,
-}
+from ..config import DB_CONFIG
 
 
 def get_db_connection():

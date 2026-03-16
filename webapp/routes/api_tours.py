@@ -1,18 +1,9 @@
-from datetime import date, datetime
-
 from flask import Blueprint, current_app, jsonify, request
 
 from ..db.database import mysql_connection_wrapper
+from ..utils import format_date_display, format_duration_hm, get_db_type
 
 tours_bp = Blueprint("tours", __name__)
-
-
-def get_db_type(filter_type):
-    if filter_type == "Alle" or not filter_type:
-        return None
-    if filter_type == "per pedes":
-        return "hiking"
-    return filter_type
 
 
 @tours_bp.route("/api/tours", methods=["GET"])
@@ -46,22 +37,12 @@ def api_tours(cursor):
 
         tours = []
         for row in rows:
-            activity_date = row["activity_date"]
-            date_display = (
-                activity_date.strftime("%d.%m.%Y")
-                if isinstance(activity_date, (date, datetime))
-                else str(activity_date)
-            )
-            duration_s = row["elapsed_time_s"] or 0
-            hours = int(duration_s // 3600)
-            minutes = int((duration_s % 3600) // 60)
-
             tours.append(
                 {
                     "id": row["activity_id"],
                     "name": row["activity_name"],
-                    "date_display": date_display,
-                    "duration_hm": f"{hours:02d}:{minutes:02d}",
+                    "date_display": format_date_display(row["activity_date"]),
+                    "duration_hm": format_duration_hm(row["elapsed_time_s"]),
                     "distance_km": round(float(row["distance_km"] or 0), 2),
                 }
             )

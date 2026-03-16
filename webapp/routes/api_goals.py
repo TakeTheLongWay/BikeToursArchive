@@ -1,17 +1,9 @@
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, current_app, jsonify, request
 
+from ..config import GOAL_UI_TO_DB_KEY, VALID_GOAL_DB_KEYS
 from ..db.database import mysql_connection_wrapper
 
 goals_bp = Blueprint("goals", __name__)
-
-GOAL_UI_TO_DB_KEY = {
-    "annual": "goal_km_year",
-    "monthly": "monthly",
-    "weekly": "weekly",
-    "daily": "daily",
-}
-
-VALID_GOAL_DB_KEYS = {"goal_km_year", "monthly", "weekly", "daily"}
 
 
 @goals_bp.route("/api/goals", methods=["GET"])
@@ -71,4 +63,5 @@ def api_update_goal(cursor):
 
         return jsonify({"status": "ok", "key": db_key, "value": value_float})
     except Exception as exc:
+        current_app.logger.error("FEHLER in api_goals PUT: %s", exc)
         return jsonify({"status": "error", "message": str(exc)}), 400
