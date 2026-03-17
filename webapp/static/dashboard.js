@@ -92,9 +92,9 @@ function getRemainingDaysUntilMonthEnd(year, month) {
 
 function getRemainingDaysUntilWeekEnd(referenceDate = null) {
     const baseDate = referenceDate instanceof Date ? referenceDate : getTodayDateOnly();
-    const day = baseDate.getDay(); // 0=So, 1=Mo, ..., 6=Sa
+    const day = baseDate.getDay();
     const daysUntilSunday = day === 0 ? 0 : 7 - day;
-    return daysUntilSunday + 1; // inkl. heute
+    return daysUntilSunday + 1;
 }
 
 function dailyKmNeeded(goalKm, doneKm, remainingDays) {
@@ -114,6 +114,13 @@ function formatDailyKm(value) {
     });
 }
 
+function formatPercent(value) {
+    return num(value, 0).toLocaleString("de-DE", {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1
+    });
+}
+
 function updateTourNameInTable(tourId, newName) {
     if (!tourTableBody) return;
 
@@ -121,6 +128,26 @@ function updateTourNameInTable(tourId, newName) {
     if (nameCell) {
         nameCell.textContent = newName;
     }
+}
+
+function updateYearProgress(doneYear, goalYear) {
+    const fillEl = document.getElementById("yearProgressBarFill");
+    const percentEl = document.getElementById("yearProgressPercent");
+    const goalEl = document.getElementById("yearProgressGoalKm");
+
+    if (!fillEl || !percentEl || !goalEl) {
+        return;
+    }
+
+    const goal = num(goalYear, 0);
+    const done = num(doneYear, 0);
+    const rawPercent = goal > 0 ? (done / goal) * 100 : 0;
+    const barPercent = Math.max(0, Math.min(rawPercent, 100));
+
+    fillEl.style.width = `${barPercent}%`;
+    fillEl.setAttribute("aria-valuenow", formatPercent(rawPercent));
+    percentEl.textContent = `${formatPercent(rawPercent)} %`;
+    goalEl.textContent = goal.toFixed(0);
 }
 
 async function loadData() {
@@ -144,6 +171,7 @@ async function loadData() {
         document.getElementById("goalYearDone").textContent = doneYear.toFixed(0);
         document.getElementById("goalYearTotal").textContent = goalYear.toFixed(0);
         document.getElementById("goalYearRest").textContent = restText(goalYear, doneYear);
+        updateYearProgress(doneYear, goalYear);
 
         const goalYearPerDayEl = document.getElementById("goalYearPerDay");
         if (goalYearPerDayEl) {

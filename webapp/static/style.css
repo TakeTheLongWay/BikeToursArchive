@@ -43,7 +43,7 @@ button:hover {
 }
 
 .btn-secondary {
-    background-color: #8c9eff; /* Helleres Blau für sekundäre Aktionen */
+    background-color: #8c9eff;
     color: white;
     padding: 8px 16px;
     border-radius: 6px;
@@ -65,14 +65,13 @@ button:hover {
     align-items: flex-start;
     gap: 16px;
     margin-bottom: 30px;
-    flex-wrap: wrap; /* Erlaubt Umbruch auf sehr kleinen Bildschirmen */
+    flex-wrap: wrap;
 }
 
 #goalSummaryBox {
     display: flex;
-    gap: 10px; /* Etwas kleinerer Abstand zwischen den Boxen */
-    flex: 1 1 auto; /* Nimmt den verfügbaren Platz links ein */
-    /* Wir versuchen, Umbruch zu vermeiden, solange Platz ist */
+    gap: 10px;
+    flex: 1 1 auto;
     flex-wrap: wrap;
 }
 
@@ -80,14 +79,11 @@ button:hover {
     background: #fff;
     border-radius: 12px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-    /* WICHTIG: Padding reduziert, damit sie schmaler sind */
     padding: 15px 10px;
     text-align: center;
-    /* Flex-Basis sorgt für eine gute Grundbreite, lässt sich aber stauchen */
     flex: 1 1 180px;
-    /* Optional: Damit sie nicht zu breit werden, wenn viel Platz ist */
     max-width: 220px;
-    border-left: 4px solid #4B77BE; /* Ein kleiner farbiger Akzent links */
+    border-left: 4px solid #4B77BE;
 }
 
 .goalFrameTitle {
@@ -109,6 +105,61 @@ button:hover {
     color: #888;
 }
 
+#yearProgressSection {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    background: #fff;
+    padding: 18px 22px;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    margin-bottom: 30px;
+}
+
+.yearProgressLabel {
+    min-width: 150px;
+    font-size: 16px;
+    font-weight: 700;
+    color: #1C3F75;
+}
+
+.yearProgressBarOuter {
+    flex: 1;
+    height: 28px;
+    background: #e9eef7;
+    border-radius: 999px;
+    overflow: hidden;
+    position: relative;
+}
+
+.yearProgressBarFill {
+    height: 100%;
+    min-width: 0;
+    max-width: 100%;
+    background: #2eaf4a;
+    border-radius: 999px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    white-space: nowrap;
+    padding-right: 10px;
+    box-sizing: border-box;
+    transition: width 0.35s ease;
+}
+
+.yearProgressBarFill span {
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.yearProgressGoal {
+    min-width: 150px;
+    text-align: right;
+    font-size: 15px;
+    font-weight: 600;
+    color: #1C3F75;
+}
 
 /* Filter-Controls rechts */
 #filterControls {
@@ -118,7 +169,7 @@ button:hover {
     padding: 15px;
     border-radius: 12px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-    flex-shrink: 0; /* Verhindert, dass die Filterbox zusammengedrückt wird */
+    flex-shrink: 0;
 }
 
 #filterControls label {
@@ -147,7 +198,7 @@ select {
 }
 
 #leftColumn {
-    flex: 2; /* Linke Spalte (Tabelle) bekommt mehr Platz */
+    flex: 2;
     background: #fff;
     padding: 25px;
     border-radius: 12px;
@@ -155,7 +206,7 @@ select {
 }
 
 #rightColumn {
-    flex: 1; /* Rechte Spalte (Stats) bekommt weniger Platz */
+    flex: 1;
     max-width: 350px;
 }
 
