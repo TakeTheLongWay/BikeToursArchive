@@ -1,7 +1,15 @@
+from datetime import date
+
 from flask import Blueprint, current_app, jsonify, request
 
 from ..db.database import mysql_connection_wrapper
-from ..utils import format_date_display, format_duration_hm, get_db_type
+from ..utils import (
+    format_date_display,
+    format_duration_hm,
+    get_db_type,
+    is_all_month_selection,
+    parse_year_value,
+)
 
 tours_bp = Blueprint("tours", __name__)
 
@@ -24,10 +32,21 @@ def api_tours(cursor):
         if db_type:
             sql += " AND activity_type = %s"
             params.append(db_type)
+
         if year:
+            year_i = parse_year_value(year)
             sql += " AND YEAR(activity_date) = %s"
-            params.append(int(year))
-        if month:
+            params.append(year_i)
+
+            if is_all_month_selection(month):
+                today = date.today()
+                if year_i == today.year:
+                    sql += " AND activity_date <= %s"
+                    params.append(today)
+            elif month:
+                sql += " AND MONTH(activity_date) = %s"
+                params.append(int(month))
+        elif month and not is_all_month_selection(month):
             sql += " AND MONTH(activity_date) = %s"
             params.append(int(month))
 

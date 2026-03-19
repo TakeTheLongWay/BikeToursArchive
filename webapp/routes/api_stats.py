@@ -4,7 +4,7 @@ from flask import Blueprint, current_app, jsonify, request
 
 from ..config import MONTH_NAMES
 from ..db.database import mysql_connection_wrapper
-from ..utils import get_db_type, parse_month_year
+from ..utils import get_db_type, is_all_month_selection, parse_month_value, parse_year_value
 
 stats_bp = Blueprint("stats", __name__)
 
@@ -18,21 +18,44 @@ def api_stats(cursor):
         month = request.args.get("month")
         year = request.args.get("year")
 
-        month_i, year_i = parse_month_year(month, year)
-
+        year_i = parse_year_value(year)
         today = date.today()
-        start_of_week = today - timedelta(days=today.weekday())
+        all_months_selected = is_all_month_selection(month)
 
-        sql_month = (
-            "SELECT COALESCE(SUM(distance_km),0) AS km, COUNT(*) AS cnt "
-            "FROM activities WHERE YEAR(activity_date) = %s AND MONTH(activity_date) = %s"
-        )
-        params_month = [year_i, month_i]
-        if db_type:
-            sql_month += " AND activity_type = %s"
-            params_month.append(db_type)
-        cursor.execute(sql_month, params_month)
-        row_month = cursor.fetchone()
+        if all_months_selected:
+            sql_month = (
+                "SELECT COALESCE(SUM(distance_km),0) AS km, COUNT(*) AS cnt "
+                "FROM activities WHERE YEAR(activity_date) = %s"
+            )
+            params_month = [year_i]
+
+            if year_i == today.year:
+                sql_month += " AND activity_date <= %s"
+                params_month.append(today)
+
+            if db_type:
+                sql_month += " AND activity_type = %s"
+                params_month.append(db_type)
+
+            cursor.execute(sql_month, params_month)
+            row_month = cursor.fetchone()
+            month_name = "Jahr bis heute" if year_i == today.year else "Alle Monate"
+        else:
+            month_i = parse_month_value(month)
+            sql_month = (
+                "SELECT COALESCE(SUM(distance_km),0) AS km, COUNT(*) AS cnt "
+                "FROM activities WHERE YEAR(activity_date) = %s AND MONTH(activity_date) = %s"
+            )
+            params_month = [year_i, month_i]
+            if db_type:
+                sql_month += " AND activity_type = %s"
+                params_month.append(db_type)
+
+            cursor.execute(sql_month, params_month)
+            row_month = cursor.fetchone()
+            month_name = MONTH_NAMES[month_i - 1] if 1 <= month_i <= 12 else ""
+
+        start_of_week = today - timedelta(days=today.weekday())
 
         sql_year = (
             "SELECT COALESCE(SUM(distance_km),0) AS km, COUNT(*) AS cnt "
@@ -58,7 +81,7 @@ def api_stats(cursor):
 
         return jsonify(
             {
-                "month_name": MONTH_NAMES[month_i - 1] if 1 <= month_i <= 12 else "",
+                "month_name": month_name,
                 "month_km": float(row_month["km"]),
                 "month_count": row_month["cnt"],
                 "year_km": float(row_year["km"]),

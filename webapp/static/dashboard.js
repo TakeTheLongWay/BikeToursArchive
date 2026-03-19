@@ -11,7 +11,15 @@ function num(val, fallback = 0) {
     return Number.isFinite(n) ? n : fallback;
 }
 
+function isAllMonthSelection(monthVal) {
+    return String(monthVal || "").trim().toLowerCase() === "alle";
+}
+
 function monthNameFromValue(monthVal) {
+    if (isAllMonthSelection(monthVal)) {
+        return "Alle";
+    }
+
     const m = Number(monthVal);
     const names = [
         "Januar", "Februar", "März", "April", "Mai", "Juni",
@@ -42,6 +50,41 @@ function remainingKm(goalKm, doneKm) {
 function getTodayDateOnly() {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
+function getDaysInYear(year) {
+    const targetYear = Number(year);
+    if (!Number.isInteger(targetYear)) {
+        return 0;
+    }
+
+    const start = new Date(targetYear, 0, 1);
+    const end = new Date(targetYear + 1, 0, 1);
+    const msPerDay = 24 * 60 * 60 * 1000;
+
+    return Math.round((end - start) / msPerDay);
+}
+
+function getElapsedDaysInYear(year) {
+    const targetYear = Number(year);
+    if (!Number.isInteger(targetYear)) {
+        return 0;
+    }
+
+    const today = getTodayDateOnly();
+    const yearStart = new Date(targetYear, 0, 1);
+    const yearEnd = new Date(targetYear, 11, 31);
+    const msPerDay = 24 * 60 * 60 * 1000;
+
+    if (today < yearStart) {
+        return 0;
+    }
+
+    if (today > yearEnd) {
+        return getDaysInYear(targetYear);
+    }
+
+    return Math.floor((today - yearStart) / msPerDay) + 1;
 }
 
 function getRemainingDaysUntilYearEnd(year) {
@@ -121,6 +164,25 @@ function formatPercent(value) {
     });
 }
 
+function formatKmTwoDecimals(value) {
+    return num(value, 0).toLocaleString("de-DE", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    });
+}
+
+function calculateExpectedYearKm(goalYear, year) {
+    const totalGoal = num(goalYear, 0);
+    const totalDays = getDaysInYear(year);
+    const elapsedDays = getElapsedDaysInYear(year);
+
+    if (totalGoal <= 0 || totalDays <= 0 || elapsedDays <= 0) {
+        return 0;
+    }
+
+    return (totalGoal / totalDays) * elapsedDays;
+}
+
 function updateTourNameInTable(tourId, newName) {
     if (!tourTableBody) return;
 
@@ -130,12 +192,13 @@ function updateTourNameInTable(tourId, newName) {
     }
 }
 
-function updateYearProgress(doneYear, goalYear) {
+function updateYearProgress(doneYear, goalYear, year) {
     const fillEl = document.getElementById("yearProgressBarFill");
     const percentEl = document.getElementById("yearProgressPercent");
     const goalEl = document.getElementById("yearProgressGoalKm");
+    const behindEl = document.getElementById("yearProgressBehind");
 
-    if (!fillEl || !percentEl || !goalEl) {
+    if (!fillEl || !percentEl || !goalEl || !behindEl) {
         return;
     }
 
@@ -148,6 +211,17 @@ function updateYearProgress(doneYear, goalYear) {
     fillEl.setAttribute("aria-valuenow", formatPercent(rawPercent));
     percentEl.textContent = `${formatPercent(rawPercent)} %`;
     goalEl.textContent = goal.toFixed(0);
+
+    const expectedKm = calculateExpectedYearKm(goal, year);
+    const behindKm = expectedKm - done;
+
+    if (behindKm > 0.001) {
+        behindEl.textContent = `${formatKmTwoDecimals(behindKm)} km hinter Soll`;
+        behindEl.style.display = "block";
+    } else {
+        behindEl.textContent = "";
+        behindEl.style.display = "none";
+    }
 }
 
 async function loadData() {
@@ -155,6 +229,7 @@ async function loadData() {
         const type = filterType ? filterType.value : "cycling";
         const month = filterMonth ? filterMonth.value : "";
         const year = filterYear ? filterYear.value : "";
+        const allMonthsSelected = isAllMonthSelection(month);
 
         const respGoals = await fetch("/api/goals");
         const goalsData = await respGoals.json();
@@ -171,7 +246,7 @@ async function loadData() {
         document.getElementById("goalYearDone").textContent = doneYear.toFixed(0);
         document.getElementById("goalYearTotal").textContent = goalYear.toFixed(0);
         document.getElementById("goalYearRest").textContent = restText(goalYear, doneYear);
-        updateYearProgress(doneYear, goalYear);
+        updateYearProgress(doneYear, goalYear, year);
 
         const goalYearPerDayEl = document.getElementById("goalYearPerDay");
         if (goalYearPerDayEl) {
@@ -180,17 +255,29 @@ async function loadData() {
             goalYearPerDayEl.textContent = formatDailyKm(yearDailyKm);
         }
 
-        const goalMonth = num(goals.monthly, 0);
+        const goalMonthTitleEl = document.getElementById("goalMonthTitle");
+        if (goalMonthTitleEl) {
+            goalMonthTitleEl.textContent = allMonthsSelected ? "Jahr bis heute" : "Monat";
+        }
+
+        const goalMonth = allMonthsSelected
+            ? calculateExpectedYearKm(goalYear, year)
+            : num(goals.monthly, 0);
         const doneMonth = num(stats.month_km, 0);
+
         document.getElementById("goalMonthDone").textContent = doneMonth.toFixed(0);
         document.getElementById("goalMonthTotal").textContent = goalMonth.toFixed(0);
         document.getElementById("goalMonthRest").textContent = restText(goalMonth, doneMonth);
 
         const goalMonthPerDayEl = document.getElementById("goalMonthPerDay");
         if (goalMonthPerDayEl) {
-            const remainingMonthDays = getRemainingDaysUntilMonthEnd(year, month);
-            const monthDailyKm = dailyKmNeeded(goalMonth, doneMonth, remainingMonthDays);
-            goalMonthPerDayEl.textContent = formatDailyKm(monthDailyKm);
+            if (allMonthsSelected) {
+                goalMonthPerDayEl.textContent = "0,0";
+            } else {
+                const remainingMonthDays = getRemainingDaysUntilMonthEnd(year, month);
+                const monthDailyKm = dailyKmNeeded(goalMonth, doneMonth, remainingMonthDays);
+                goalMonthPerDayEl.textContent = formatDailyKm(monthDailyKm);
+            }
         }
 
         const goalWeek = num(goals.weekly, 0);
@@ -209,8 +296,8 @@ async function loadData() {
             }
         }
 
-        const monthName = monthNameFromValue(month);
-        document.getElementById("statsMonthTitle").textContent = `Monat: ${monthName}`;
+        const monthName = stats.month_name || monthNameFromValue(month);
+        document.getElementById("statsMonthTitle").textContent = `${monthName}:`;
         document.getElementById("statsMonthKm").textContent = num(stats.month_km, 0).toFixed(1);
         document.getElementById("statsMonthCount").textContent = num(stats.month_count, 0);
 

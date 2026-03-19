@@ -54,11 +54,6 @@ button:hover {
     background-color: #5c6bc0;
 }
 
-/*
-   LAYOUT-ANPASSUNG FÜR ZIELE-BOXEN
-   Hier sorgen wir dafür, dass 3 Boxen nebeneinander passen.
-*/
-
 #filterBox {
     display: flex;
     justify-content: space-between;
@@ -114,6 +109,7 @@ button:hover {
     border-radius: 12px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.05);
     margin-bottom: 30px;
+    flex-wrap: wrap;
 }
 
 .yearProgressLabel {
@@ -125,7 +121,8 @@ button:hover {
 
 .yearProgressBarOuter {
     flex: 1;
-    height: 28px;
+    min-width: 260px;
+    height: 34px;
     background: #e9eef7;
     border-radius: 999px;
     overflow: hidden;
@@ -142,7 +139,7 @@ button:hover {
     align-items: center;
     justify-content: flex-end;
     white-space: nowrap;
-    padding-right: 10px;
+    padding-right: 12px;
     box-sizing: border-box;
     transition: width 0.35s ease;
 }
@@ -153,8 +150,22 @@ button:hover {
     font-weight: 700;
 }
 
+.yearProgressMeta {
+    min-width: 210px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+}
+
+.yearProgressBehind {
+    font-size: 13px;
+    font-weight: 600;
+    color: #666;
+    text-align: right;
+}
+
 .yearProgressGoal {
-    min-width: 150px;
     text-align: right;
     font-size: 15px;
     font-weight: 600;

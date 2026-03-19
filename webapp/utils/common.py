@@ -10,6 +10,10 @@ def get_db_type(filter_type):
     return ACTIVITY_TYPE_ALIASES.get(filter_type, filter_type)
 
 
+def is_all_month_selection(month_value):
+    return str(month_value or "").strip().lower() == "alle"
+
+
 def format_date_display(value):
     if isinstance(value, (date, datetime)):
         return value.strftime("%d.%m.%Y")
@@ -29,6 +33,20 @@ def parse_month_year(month_value, year_value):
     except (TypeError, ValueError):
         today = date.today()
         return today.month, today.year
+
+
+def parse_month_value(month_value):
+    try:
+        return int(month_value)
+    except (TypeError, ValueError):
+        return date.today().month
+
+
+def parse_year_value(year_value):
+    try:
+        return int(year_value)
+    except (TypeError, ValueError):
+        return date.today().year
 
 
 def build_gpx_path(base_path, filename):
