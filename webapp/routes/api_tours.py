@@ -99,3 +99,30 @@ def api_update_tour_name(cursor, tour_id):
     except Exception as exc:
         current_app.logger.error("FEHLER beim Umbenennen der Tour %s: %s", tour_id, exc)
         return jsonify({"status": "error", "message": str(exc)}), 500
+
+
+@tours_bp.route("/api/tours/<int:tour_id>", methods=["DELETE"])
+@mysql_connection_wrapper
+def api_delete_tour(cursor, tour_id):
+    try:
+        cursor.execute(
+            "SELECT activity_id, activity_name FROM activities WHERE activity_id = %s",
+            (tour_id,),
+        )
+        row = cursor.fetchone()
+
+        if not row:
+            return jsonify({"status": "error", "message": "Tour nicht gefunden."}), 404
+
+        cursor.execute("DELETE FROM activities WHERE activity_id = %s", (tour_id,))
+
+        return jsonify(
+            {
+                "status": "ok",
+                "tour_id": tour_id,
+                "name": row["activity_name"],
+            }
+        )
+    except Exception as exc:
+        current_app.logger.error("FEHLER beim Löschen der Tour %s: %s", tour_id, exc)
+        return jsonify({"status": "error", "message": str(exc)}), 500

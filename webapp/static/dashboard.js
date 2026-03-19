@@ -6,6 +6,14 @@ const filterYear = document.getElementById("filterYear");
 const btnImport = document.getElementById("btnImport");
 const fileInput = document.getElementById("fileInput");
 
+const deleteConfirmModal = document.getElementById("deleteConfirmModal");
+const confirmDeleteYes = document.getElementById("confirmDeleteYes");
+const confirmDeleteNo = document.getElementById("confirmDeleteNo");
+
+const DELETE_ICON_SRC = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAACXBIWXMAAAsTAAALEwEAmpwYAAABg0lEQVR4nO2WS0oDQRCGP/AJiiAk4NaduhEVNNE7eA69SERQ8XkVwTu4ia8TOC4FEdREw0jh39AOY6ZDOoI4PxRMV9dM/VVdVT1QokTv2AQSIM1Ior2BI8lx7uT+NwikklB9347SSPL3CMRIa9/HkpYE+P6Bftclgf9DYBe49NZXwDGwMEgCYwHDqAMcyTYqgXHgXM9vinYNmJDUgBOgJZuLUBJpIIED7zZc7PK9Je82PYxJoKPInfMtoOLZVaQzLCsTH8BcLAKpztawrXUTqEqa0tme4TQ0C2kPBFa9aJ3DZubZZaUm3U2vBPLwKptJTzedaUPfObI1/XMMAo85BKrqfff+HTDj7U9J/1REwFXsRhcbF6m1XegR1KW7LiKwEzBcnFifhxbhmdZ7RQRGRaLbn7Brw5b6vKgNV4A28B7ShqFoiEjikciDOX/whlc0DHujuKU+r6swTdaV9rY3ikfiuf/CkG5Bm3A/HZWl3SKP7tzHLLAP3AIv6nWrdiu4+az1J6qvJAJWa1coAAAAAElFTkSuQmCC";
+
+let pendingDeleteTourId = null;
+
 function num(val, fallback = 0) {
     const n = Number(val);
     return Number.isFinite(n) ? n : fallback;
@@ -186,9 +194,9 @@ function calculateExpectedYearKm(goalYear, year) {
 function updateTourNameInTable(tourId, newName) {
     if (!tourTableBody) return;
 
-    const nameCell = tourTableBody.querySelector(`td[data-tour-id="${tourId}"]`);
-    if (nameCell) {
-        nameCell.textContent = newName;
+    const nameSpan = tourTableBody.querySelector(`.tour-name-text[data-tour-id="${tourId}"]`);
+    if (nameSpan) {
+        nameSpan.textContent = newName;
     }
 }
 
@@ -222,6 +230,83 @@ function updateYearProgress(doneYear, goalYear, year) {
         behindEl.textContent = "";
         behindEl.style.display = "none";
     }
+}
+
+function openDeleteConfirmModal(tourId) {
+    if (!deleteConfirmModal) return;
+    pendingDeleteTourId = tourId;
+    deleteConfirmModal.hidden = false;
+}
+
+function closeDeleteConfirmModal() {
+    pendingDeleteTourId = null;
+    if (deleteConfirmModal) {
+        deleteConfirmModal.hidden = true;
+    }
+}
+
+async function deleteTour(tourId) {
+    try {
+        const resp = await fetch(`/api/tours/${tourId}`, {
+            method: "DELETE"
+        });
+
+        let result = {};
+        try {
+            result = await resp.json();
+        } catch (jsonError) {
+            result = {};
+        }
+
+        if (!resp.ok || result.status !== "ok") {
+            const msg = result.message || result.error || "Die Tour konnte nicht gelöscht werden.";
+            alert(msg);
+            return;
+        }
+
+        closeDeleteConfirmModal();
+        await loadData();
+    } catch (e) {
+        console.error("Fehler beim Löschen der Tour:", e);
+        alert("Die Tour konnte nicht gelöscht werden.");
+    }
+}
+
+function buildTourNameCell(tour) {
+    const td = document.createElement("td");
+
+    const wrapper = document.createElement("span");
+    wrapper.className = "tour-name-with-delete";
+
+    const deleteButton = document.createElement("button");
+    deleteButton.type = "button";
+    deleteButton.className = "tour-delete-button";
+    deleteButton.setAttribute("aria-label", "Tour löschen");
+    deleteButton.title = "Tour löschen";
+
+    deleteButton.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        openDeleteConfirmModal(tour.id);
+    });
+
+    const icon = document.createElement("img");
+    icon.src = DELETE_ICON_SRC;
+    icon.alt = "Delete";
+    icon.className = "tour-delete-icon";
+    icon.draggable = false;
+
+    const nameSpan = document.createElement("span");
+    nameSpan.className = "tour-name-text";
+    nameSpan.dataset.tourId = tour.id;
+    nameSpan.textContent = tour.name || "";
+
+    deleteButton.appendChild(icon);
+    wrapper.appendChild(deleteButton);
+    wrapper.appendChild(nameSpan);
+    td.appendChild(wrapper);
+
+    return td;
 }
 
 async function loadData() {
@@ -323,16 +408,27 @@ function renderTours(tours) {
     tours.forEach((t) => {
         const tr = document.createElement("tr");
         tr.style.cursor = "pointer";
-        tr.onclick = () => {
+        tr.addEventListener("click", () => {
             window.location.href = `/tour/${t.id}`;
-        };
+        });
 
-        tr.innerHTML = `
-            <td data-tour-id="${t.id}">${t.name}</td>
-            <td>${t.date_display}</td>
-            <td>${t.duration_hm}</td>
-            <td style="text-align:right;">${num(t.distance_km, 0).toFixed(2)}</td>
-        `;
+        const nameTd = buildTourNameCell(t);
+
+        const dateTd = document.createElement("td");
+        dateTd.textContent = t.date_display || "";
+
+        const durationTd = document.createElement("td");
+        durationTd.textContent = t.duration_hm || "";
+
+        const distanceTd = document.createElement("td");
+        distanceTd.style.textAlign = "right";
+        distanceTd.textContent = num(t.distance_km, 0).toFixed(2);
+
+        tr.appendChild(nameTd);
+        tr.appendChild(dateTd);
+        tr.appendChild(durationTd);
+        tr.appendChild(distanceTd);
+
         tourTableBody.appendChild(tr);
     });
 }
@@ -379,6 +475,30 @@ if (btnImport && fileInput) {
         await uploadGpxFiles(files);
     });
 }
+
+if (confirmDeleteNo) {
+    confirmDeleteNo.addEventListener("click", () => {
+        closeDeleteConfirmModal();
+    });
+}
+
+if (confirmDeleteYes) {
+    confirmDeleteYes.addEventListener("click", async () => {
+        if (!pendingDeleteTourId) {
+            closeDeleteConfirmModal();
+            return;
+        }
+
+        const tourId = pendingDeleteTourId;
+        await deleteTour(tourId);
+    });
+}
+
+document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && deleteConfirmModal && !deleteConfirmModal.hidden) {
+        closeDeleteConfirmModal();
+    }
+});
 
 [filterType, filterMonth, filterYear].forEach((el) => {
     if (el) el.addEventListener("change", loadData);
