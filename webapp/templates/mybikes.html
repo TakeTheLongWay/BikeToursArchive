@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="utf-8">
+    <title>Meine Bikes</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .bikes-container {
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 25px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .bike-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 0;
+            border-bottom: 1px solid #e0e6f0;
+        }
+
+        .bike-item:last-of-type {
+            border-bottom: none;
+        }
+
+        .bike-name {
+            font-weight: 600;
+            color: #1C3F75;
+            width: 35%;
+        }
+
+        .bike-value-container {
+            display: flex;
+            align-items: center;
+            width: 55%;
+            justify-content: flex-end;
+        }
+
+        .bike-value-input {
+            width: 100%;
+            max-width: 260px;
+            padding: 8px 10px;
+            border-radius: 6px;
+            border: 1px solid #c0d3e9;
+            text-align: left;
+            box-sizing: border-box;
+        }
+
+        .bike-value-input.km-input {
+            text-align: right;
+        }
+
+        .save-button {
+            background: #4B77BE;
+            color: white;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            min-width: 140px;
+        }
+
+        .save-button:hover {
+            background: #1C3F75;
+        }
+
+        .bike-note {
+            font-size: 12px;
+            color: #777;
+            margin-top: 14px;
+            line-height: 1.4;
+        }
+
+        .message-box {
+            border-radius: 8px;
+            padding: 10px 12px;
+            margin-bottom: 16px;
+            font-size: 14px;
+        }
+
+        .message-box.success {
+            background: #eaf7ec;
+            color: #226637;
+            border: 1px solid #b9e2c2;
+        }
+
+        .message-box.error {
+            background: #fdecec;
+            color: #a33a3a;
+            border: 1px solid #f5c2c2;
+        }
+
+        .form-actions {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 18px;
+        }
+    </style>
+</head>
+<body>
+<div class="bikes-container">
+    <a href="{{ url_for('pages.index') }}">← Zurück zum Dashboard</a>
+    <h1 class="title">Meine Bikes</h1>
+
+    {% if success_message %}
+        <div class="message-box success">{{ success_message }}</div>
+    {% endif %}
+
+    {% if error_message %}
+        <div class="message-box error">{{ error_message }}</div>
+    {% endif %}
+
+    <form method="post" action="{{ url_for('pages.mybikes_save') }}">
+        <div class="bike-item">
+            <label class="bike-name" for="bike-name">Name</label>
+            <div class="bike-value-container">
+                <input
+                    id="bike-name"
+                    name="name"
+                    type="text"
+                    class="bike-value-input"
+                    value="{{ form_data.name }}"
+                    maxlength="100"
+                    required
+                >
+            </div>
+        </div>
+
+        <div class="bike-item">
+            <label class="bike-name" for="bike-type">Typ</label>
+            <div class="bike-value-container">
+                <input
+                    id="bike-type"
+                    name="type"
+                    type="text"
+                    class="bike-value-input"
+                    value="{{ form_data.type }}"
+                    maxlength="100"
+                    required
+                >
+            </div>
+        </div>
+
+        <div class="bike-item">
+            <label class="bike-name" for="bike-init-km">Start-km-Stand</label>
+            <div class="bike-value-container">
+                <input
+                    id="bike-init-km"
+                    name="init_km"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    class="bike-value-input km-input"
+                    value="{{ form_data.init_km }}"
+                >
+            </div>
+        </div>
+
+        <div class="bike-item">
+            <label class="bike-name" for="bike-marke">Marke</label>
+            <div class="bike-value-container">
+                <input
+                    id="bike-marke"
+                    name="marke"
+                    type="text"
+                    class="bike-value-input"
+                    value="{{ form_data.marke }}"
+                    maxlength="100"
+                >
+            </div>
+        </div>
+
+        <div class="bike-item">
+            <label class="bike-name" for="bike-model">Model</label>
+            <div class="bike-value-container">
+                <input
+                    id="bike-model"
+                    name="model"
+                    type="text"
+                    class="bike-value-input"
+                    value="{{ form_data.model }}"
+                    maxlength="100"
+                >
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="save-button">Bike speichern</button>
+        </div>
+    </form>
+
+</div>
+</body>
+</html>

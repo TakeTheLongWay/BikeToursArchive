@@ -1,10 +1,20 @@
-from flask import Blueprint, current_app, render_template, send_from_directory
+from flask import Blueprint, current_app, render_template, request, send_from_directory
 
 from ..db.database import mysql_connection_wrapper
 from ..services.gpx_utils import load_gpx_data
 from ..utils import build_gpx_path, format_date_display, format_duration_hm
 
 pages_bp = Blueprint("pages", __name__)
+
+
+def _empty_bike_form_data():
+    return {
+        "name": "",
+        "type": "",
+        "init_km": "",
+        "marke": "",
+        "model": "",
+    }
 
 
 @pages_bp.route("/", methods=["GET"])
@@ -18,6 +28,80 @@ def index():
 @pages_bp.route("/mygoals", methods=["GET"])
 def mygoals():
     return render_template("mygoals.html")
+
+
+@pages_bp.route("/mybikes", methods=["GET"])
+def mybikes():
+    return render_template(
+        "mybikes.html",
+        form_data=_empty_bike_form_data(),
+        error_message=None,
+        success_message=None,
+    )
+
+
+@pages_bp.route("/mybikes", methods=["POST"])
+@mysql_connection_wrapper
+def mybikes_save(cursor):
+    form_data = {
+        "name": (request.form.get("name") or "").strip(),
+        "type": (request.form.get("type") or "").strip(),
+        "init_km": (request.form.get("init_km") or "").strip(),
+        "marke": (request.form.get("marke") or "").strip(),
+        "model": (request.form.get("model") or "").strip(),
+    }
+
+    if not form_data["name"]:
+        return render_template(
+            "mybikes.html",
+            form_data=form_data,
+            error_message="Bitte gib einen Namen für das Bike ein.",
+            success_message=None,
+        )
+
+    if not form_data["type"]:
+        return render_template(
+            "mybikes.html",
+            form_data=form_data,
+            error_message="Bitte gib einen Typ für das Bike ein.",
+            success_message=None,
+        )
+
+    try:
+        init_km = float(form_data["init_km"].replace(",", ".")) if form_data["init_km"] else 0.0
+    except ValueError:
+        return render_template(
+            "mybikes.html",
+            form_data=form_data,
+            error_message="Bitte gib für den Start-km-Stand eine gültige Zahl ein.",
+            success_message=None,
+        )
+
+    if init_km < 0:
+        return render_template(
+            "mybikes.html",
+            form_data=form_data,
+            error_message="Der Start-km-Stand darf nicht negativ sein.",
+            success_message=None,
+        )
+
+    marke = form_data["marke"] or None
+    model = form_data["model"] or None
+
+    cursor.execute(
+        """
+        INSERT INTO bikes (name, type, init_km, marke, model)
+        VALUES (%s, %s, %s, %s, %s)
+        """,
+        (form_data["name"], form_data["type"], init_km, marke, model),
+    )
+
+    return render_template(
+        "mybikes.html",
+        form_data=_empty_bike_form_data(),
+        error_message=None,
+        success_message=f'Bike "{form_data["name"]}" wurde erfolgreich gespeichert.',
+    )
 
 
 @pages_bp.route("/vendor/<path:filename>", methods=["GET"])
