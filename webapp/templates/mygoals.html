@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
     <meta charset="utf-8">
-    <title>Meine Ziele bearbeiten</title>
+    <title>Ziele bearbeiten</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <script defer src="{{ url_for('static', filename='goals.js') }}"></script>
     <style>
@@ -71,16 +71,17 @@
 <body>
 <div class="goals-container">
     <a href="{{ url_for('pages.index') }}">← Zurück zum Dashboard</a>
-    <h1 class="title">Meine Leistungsziele</h1>
+    <h1 class="title">KM-Ziele</h1>
 
     <div id="goalsList">
         <div class="goal-item" data-key="annual">
             <span class="goal-name">Jahresleistung (km)</span>
+            <button class="edit-button" data-button>Edit</button>
             <div class="goal-value-container">
                 <span class="goal-value-display" data-display>0.00</span>
                 <input type="number" step="0.01" class="goal-value-input" data-input style="display: none;">
             </div>
-            <button class="edit-button" data-button>Edit</button>
+            
         </div>
 
         <div class="goal-item" data-key="monthly">
