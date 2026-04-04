@@ -101,28 +101,49 @@ def api_update_tour_name(cursor, tour_id):
         return jsonify({"status": "error", "message": str(exc)}), 500
 
 
-@tours_bp.route("/api/tours/<int:tour_id>", methods=["DELETE"])
+@tours_bp.route("/api/tours/<int:tour_id>/bike", methods=["PUT"])
 @mysql_connection_wrapper
-def api_delete_tour(cursor, tour_id):
+def api_update_tour_bike(cursor, tour_id):
     try:
-        cursor.execute(
-            "SELECT activity_id, activity_name FROM activities WHERE activity_id = %s",
-            (tour_id,),
-        )
-        row = cursor.fetchone()
+        data = request.get_json(silent=True) or {}
+        bike_id = data.get("bike_id")
 
-        if not row:
+        cursor.execute("SELECT activity_id FROM activities WHERE activity_id = %s", (tour_id,))
+        activity_row = cursor.fetchone()
+        if not activity_row:
             return jsonify({"status": "error", "message": "Tour nicht gefunden."}), 404
 
-        cursor.execute("DELETE FROM activities WHERE activity_id = %s", (tour_id,))
+        cursor.execute("DELETE FROM bike_tour WHERE activity_id = %s", (tour_id,))
+
+        if bike_id in (None, "", "null"):
+            return jsonify({"status": "ok", "tour_id": tour_id, "bike_id": None})
+
+        try:
+            bike_id_int = int(bike_id)
+        except (TypeError, ValueError):
+            return jsonify({"status": "error", "message": "Ungültige Bike-ID."}), 400
+
+        cursor.execute("SELECT id, name FROM bikes WHERE id = %s", (bike_id_int,))
+        bike_row = cursor.fetchone()
+        if not bike_row:
+            return jsonify({"status": "error", "message": "Bike nicht gefunden."}), 404
+
+        cursor.execute(
+            """
+            INSERT INTO bike_tour (bike_id, activity_id)
+            VALUES (%s, %s)
+            """,
+            (bike_id_int, tour_id),
+        )
 
         return jsonify(
             {
                 "status": "ok",
                 "tour_id": tour_id,
-                "name": row["activity_name"],
+                "bike_id": bike_id_int,
+                "bike_name": bike_row["name"],
             }
         )
     except Exception as exc:
-        current_app.logger.error("FEHLER beim Löschen der Tour %s: %s", tour_id, exc)
+        current_app.logger.error("FEHLER beim Speichern des Bikes für Tour %s: %s", tour_id, exc)
         return jsonify({"status": "error", "message": str(exc)}), 500

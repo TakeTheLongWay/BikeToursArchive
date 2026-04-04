@@ -195,6 +195,21 @@ def tour_detail(cursor, tour_id):
     if not row:
         return "Tour nicht gefunden", 404
 
+    bikes = _load_bikes(cursor)
+
+    cursor.execute(
+        """
+        SELECT bike_id
+        FROM bike_tour
+        WHERE activity_id = %s
+        ORDER BY bike_id ASC
+        LIMIT 1
+        """,
+        (tour_id,),
+    )
+    bike_link_row = cursor.fetchone() or {}
+    selected_bike_id = bike_link_row.get("bike_id")
+
     gpx_path = build_gpx_path(current_app.config["GPX_BASE_PATH"], row.get("filename"))
 
     coords = []
@@ -215,4 +230,9 @@ def tour_detail(cursor, tour_id):
         "coords": coords,
     }
 
-    return render_template("detail.html", tour=tour_data)
+    return render_template(
+        "detail.html",
+        tour=tour_data,
+        bikes=bikes,
+        selected_bike_id=selected_bike_id,
+    )

@@ -58,6 +58,17 @@
             color: #1C3F75;
             font-weight: 600;
         }
+
+        .bike-select {
+            min-width: 180px;
+            padding: 6px 10px;
+            border-radius: 6px;
+            border: 1px solid #c0d3e9;
+            background-color: #f9fbfd;
+            color: #1C3F75;
+            font-size: 14px;
+            outline: none;
+        }
     </style>
 </head>
 <body>
@@ -92,6 +103,19 @@
         <div class="metric-item" style="margin-left: 10px; padding-left: 14px; border-left: 1px solid #eee;">
             <span class="metric-label">Aufstieg:</span>
             <span class="metric-value">{{ tour.total_ascent_m }} hm</span>
+        </div>
+        <div class="metric-item" style="margin-left: 10px; padding-left: 14px; border-left: 1px solid #eee;">
+            <span class="metric-label">Bike:</span>
+            <select
+                id="tourBikeSelect"
+                class="bike-select"
+                data-tour-id="{{ tour.id }}"
+            >
+                <option value="" {% if not selected_bike_id %}selected{% endif %}>no Bike</option>
+                {% for bike in bikes %}
+                    <option value="{{ bike.id }}" {% if selected_bike_id == bike.id %}selected{% endif %}>{{ bike.name }}</option>
+                {% endfor %}
+            </select>
         </div>
     </div>
 
@@ -178,6 +202,41 @@
         }
 
         const tourNameEl = document.getElementById("tourNameValue");
+        const bikeSelectEl = document.getElementById("tourBikeSelect");
+
+        if (bikeSelectEl) {
+            let previousBikeValue = bikeSelectEl.value;
+
+            bikeSelectEl.addEventListener("change", async () => {
+                const selectedValue = bikeSelectEl.value;
+                bikeSelectEl.disabled = true;
+
+                try {
+                    const response = await fetch(`/api/tours/${bikeSelectEl.dataset.tourId}/bike`, {
+                        method: "PUT",
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify({
+                            bike_id: selectedValue === "" ? null : Number(selectedValue)
+                        })
+                    });
+
+                    const result = await response.json();
+
+                    if (!response.ok || result.status !== "ok") {
+                        throw new Error(result.message || "Speichern fehlgeschlagen.");
+                    }
+
+                    previousBikeValue = selectedValue;
+                } catch (error) {
+                    alert(error.message || "Die Bike-Zuordnung konnte nicht gespeichert werden.");
+                    bikeSelectEl.value = previousBikeValue;
+                } finally {
+                    bikeSelectEl.disabled = false;
+                }
+            });
+        }
 
         if (!tourNameEl) {
             return;
