@@ -21,9 +21,28 @@ def _empty_bike_form_data():
 def _load_bikes(cursor):
     cursor.execute(
         """
-        SELECT id, name, type, init_km, marke, model
-        FROM bikes
-        ORDER BY name ASC, id ASC
+        SELECT
+            b.id,
+            b.name,
+            b.type,
+            b.init_km,
+            b.marke,
+            b.model,
+            COUNT(DISTINCT bt.activity_id) AS tour_count,
+            COALESCE(SUM(a.distance_km), 0) AS km_gefahren
+        FROM bikes b
+        LEFT JOIN bike_tour bt
+            ON bt.bike_id = b.id
+        LEFT JOIN activities a
+            ON a.activity_id = bt.activity_id
+        GROUP BY
+            b.id,
+            b.name,
+            b.type,
+            b.init_km,
+            b.marke,
+            b.model
+        ORDER BY b.name ASC, b.id ASC
         """
     )
     rows = cursor.fetchall() or []
@@ -38,6 +57,8 @@ def _load_bikes(cursor):
                 "init_km": float(row["init_km"] or 0),
                 "marke": row["marke"] or "",
                 "model": row["model"] or "",
+                "tour_count": int(row["tour_count"] or 0),
+                "km_gefahren": float(row["km_gefahren"] or 0),
             }
         )
     return bikes

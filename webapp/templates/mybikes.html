@@ -308,6 +308,8 @@
                             <th>Start-km</th>
                             <th>Marke</th>
                             <th>Model</th>
+                            <th># Touren</th>
+                            <th>km gefahren</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -326,6 +328,8 @@
                                 <td>{{ '%.2f'|format(bike.init_km) }}</td>
                                 <td>{{ bike.marke }}</td>
                                 <td>{{ bike.model }}</td>
+                                <td>{{ bike.tour_count }}</td>
+                                <td>{{ '%.2f'|format(bike.km_gefahren) }}</td>
                             </tr>
                         {% endfor %}
                     </tbody>
