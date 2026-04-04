@@ -9,12 +9,38 @@ pages_bp = Blueprint("pages", __name__)
 
 def _empty_bike_form_data():
     return {
+        "id": "",
         "name": "",
         "type": "",
         "init_km": "",
         "marke": "",
         "model": "",
     }
+
+
+def _load_bikes(cursor):
+    cursor.execute(
+        """
+        SELECT id, name, type, init_km, marke, model
+        FROM bikes
+        ORDER BY name ASC, id ASC
+        """
+    )
+    rows = cursor.fetchall() or []
+
+    bikes = []
+    for row in rows:
+        bikes.append(
+            {
+                "id": row["id"],
+                "name": row["name"] or "",
+                "type": row["type"] or "",
+                "init_km": float(row["init_km"] or 0),
+                "marke": row["marke"] or "",
+                "model": row["model"] or "",
+            }
+        )
+    return bikes
 
 
 @pages_bp.route("/", methods=["GET"])
@@ -31,10 +57,13 @@ def mygoals():
 
 
 @pages_bp.route("/mybikes", methods=["GET"])
-def mybikes():
+@mysql_connection_wrapper
+def mybikes(cursor):
+    bikes = _load_bikes(cursor)
     return render_template(
         "mybikes.html",
         form_data=_empty_bike_form_data(),
+        bikes=bikes,
         error_message=None,
         success_message=None,
     )
@@ -44,6 +73,7 @@ def mybikes():
 @mysql_connection_wrapper
 def mybikes_save(cursor):
     form_data = {
+        "id": (request.form.get("id") or "").strip(),
         "name": (request.form.get("name") or "").strip(),
         "type": (request.form.get("type") or "").strip(),
         "init_km": (request.form.get("init_km") or "").strip(),
@@ -55,6 +85,7 @@ def mybikes_save(cursor):
         return render_template(
             "mybikes.html",
             form_data=form_data,
+            bikes=_load_bikes(cursor),
             error_message="Bitte gib einen Namen für das Bike ein.",
             success_message=None,
         )
@@ -63,6 +94,7 @@ def mybikes_save(cursor):
         return render_template(
             "mybikes.html",
             form_data=form_data,
+            bikes=_load_bikes(cursor),
             error_message="Bitte gib einen Typ für das Bike ein.",
             success_message=None,
         )
@@ -73,6 +105,7 @@ def mybikes_save(cursor):
         return render_template(
             "mybikes.html",
             form_data=form_data,
+            bikes=_load_bikes(cursor),
             error_message="Bitte gib für den Start-km-Stand eine gültige Zahl ein.",
             success_message=None,
         )
@@ -81,6 +114,7 @@ def mybikes_save(cursor):
         return render_template(
             "mybikes.html",
             form_data=form_data,
+            bikes=_load_bikes(cursor),
             error_message="Der Start-km-Stand darf nicht negativ sein.",
             success_message=None,
         )
@@ -88,19 +122,62 @@ def mybikes_save(cursor):
     marke = form_data["marke"] or None
     model = form_data["model"] or None
 
-    cursor.execute(
-        """
-        INSERT INTO bikes (name, type, init_km, marke, model)
-        VALUES (%s, %s, %s, %s, %s)
-        """,
-        (form_data["name"], form_data["type"], init_km, marke, model),
-    )
+    if form_data["id"]:
+        try:
+            bike_id = int(form_data["id"])
+        except ValueError:
+            return render_template(
+                "mybikes.html",
+                form_data=form_data,
+                bikes=_load_bikes(cursor),
+                error_message="Ungültige Bike-ID.",
+                success_message=None,
+            )
+
+        cursor.execute("SELECT id FROM bikes WHERE id = %s", (bike_id,))
+        existing_row = cursor.fetchone()
+        if not existing_row:
+            return render_template(
+                "mybikes.html",
+                form_data=form_data,
+                bikes=_load_bikes(cursor),
+                error_message="Das ausgewählte Bike wurde nicht gefunden.",
+                success_message=None,
+            )
+
+        cursor.execute(
+            """
+            UPDATE bikes
+            SET name = %s,
+                type = %s,
+                init_km = %s,
+                marke = %s,
+                model = %s
+            WHERE id = %s
+            """,
+            (form_data["name"], form_data["type"], init_km, marke, model, bike_id),
+        )
+
+        success_message = f'Bike "{form_data["name"]}" wurde erfolgreich aktualisiert.'
+    else:
+        cursor.execute(
+            """
+            INSERT INTO bikes (name, type, init_km, marke, model)
+            VALUES (%s, %s, %s, %s, %s)
+            """,
+            (form_data["name"], form_data["type"], init_km, marke, model),
+        )
+
+        success_message = f'Bike "{form_data["name"]}" wurde erfolgreich gespeichert.'
+
+    bikes = _load_bikes(cursor)
 
     return render_template(
         "mybikes.html",
         form_data=_empty_bike_form_data(),
+        bikes=bikes,
         error_message=None,
-        success_message=f'Bike "{form_data["name"]}" wurde erfolgreich gespeichert.',
+        success_message=success_message,
     )
 
 
