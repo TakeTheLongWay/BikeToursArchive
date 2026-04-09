@@ -390,6 +390,9 @@ async function loadData() {
         document.getElementById("statsYearKm").textContent = num(stats.year_km, 0).toFixed(1);
         document.getElementById("statsYearCount").textContent = num(stats.year_count, 0);
 
+        document.getElementById("statsAllRidesKm").textContent = num(stats.year_km, 0).toFixed(1);
+        document.getElementById("statsAllRidesCount").textContent = num(stats.year_count, 0);
+
         renderTours(Array.isArray(tours) ? tours : []);
     } catch (e) {
         console.error("Fehler beim Laden der Dashboard-Daten:", e);
