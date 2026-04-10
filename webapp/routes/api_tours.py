@@ -24,34 +24,47 @@ def api_tours(cursor):
         year = request.args.get("year")
 
         sql = (
-            "SELECT a.activity_id, a.activity_name, a.activity_date, a.elapsed_time_s, a.distance_km, COALESCE(b.name, '') "
-            "AS bike_name FROM activities a LEFT JOIN bike_tour bt ON bt.activity_id = a.activity_id "
-            "LEFT JOIN bikes b ON b.id = bt.bike_id WHERE 1 = 1"
+            "SELECT "
+            "a.activity_id, "
+            "a.activity_name, "
+            "a.activity_date, "
+            "a.elapsed_time_s, "
+            "a.distance_km, "
+            "COALESCE(( "
+            "    SELECT b.name "
+            "    FROM bike_tour bt "
+            "    INNER JOIN bikes b ON b.id = bt.bike_id "
+            "    WHERE bt.activity_id = a.activity_id "
+            "    ORDER BY b.id ASC "
+            "    LIMIT 1 "
+            "), '') AS bike_name "
+            "FROM activities a "
+            "WHERE 1 = 1"
         )
         params = []
 
         if db_type:
-            sql += " AND activity_type = %s"
+            sql += " AND a.activity_type = %s"
             params.append(db_type)
 
         if year:
             year_i = parse_year_value(year)
-            sql += " AND YEAR(activity_date) = %s"
+            sql += " AND YEAR(a.activity_date) = %s"
             params.append(year_i)
 
-            if is_all_month_selection(month):
+            if isAllMonthSelection := is_all_month_selection(month):
                 today = date.today()
                 if year_i == today.year:
-                    sql += " AND activity_date <= %s"
+                    sql += " AND a.activity_date <= %s"
                     params.append(today)
             elif month:
-                sql += " AND MONTH(activity_date) = %s"
+                sql += " AND MONTH(a.activity_date) = %s"
                 params.append(int(month))
         elif month and not is_all_month_selection(month):
-            sql += " AND MONTH(activity_date) = %s"
+            sql += " AND MONTH(a.activity_date) = %s"
             params.append(int(month))
 
-        sql += " ORDER BY activity_date DESC"
+        sql += " ORDER BY a.activity_date DESC"
         cursor.execute(sql, params)
         rows = cursor.fetchall() or []
 
@@ -64,7 +77,7 @@ def api_tours(cursor):
                     "date_display": format_date_display(row["activity_date"]),
                     "duration_hm": format_duration_hm(row["elapsed_time_s"]),
                     "distance_km": round(float(row["distance_km"] or 0), 2),
-                    "bike_name": row["bike_name"],
+                    "bike_name": row["bike_name"] or "n/a",
                 }
             )
 
@@ -148,4 +161,22 @@ def api_update_tour_bike(cursor, tour_id):
         )
     except Exception as exc:
         current_app.logger.error("FEHLER beim Speichern des Bikes für Tour %s: %s", tour_id, exc)
+        return jsonify({"status": "error", "message": str(exc)}), 500
+
+
+@tours_bp.route("/api/tours/<int:tour_id>", methods=["DELETE"])
+@mysql_connection_wrapper
+def api_delete_tour(cursor, tour_id):
+    try:
+        cursor.execute("SELECT activity_id FROM activities WHERE activity_id = %s", (tour_id,))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"status": "error", "message": "Tour nicht gefunden."}), 404
+
+        cursor.execute("DELETE FROM bike_tour WHERE activity_id = %s", (tour_id,))
+        cursor.execute("DELETE FROM activities WHERE activity_id = %s", (tour_id,))
+
+        return jsonify({"status": "ok", "tour_id": tour_id})
+    except Exception as exc:
+        current_app.logger.error("FEHLER beim Löschen der Tour %s: %s", tour_id, exc)
         return jsonify({"status": "error", "message": str(exc)}), 500

@@ -79,6 +79,13 @@ def api_stats(cursor):
         cursor.execute(sql_week, params_week)
         row_week = cursor.fetchone()
 
+        sql_all_rides = (
+            "SELECT COALESCE(SUM(distance_km),0) AS km, COUNT(*) AS cnt "
+            "FROM activities"
+        )
+        cursor.execute(sql_all_rides)
+        row_all_rides = cursor.fetchone()
+
         return jsonify(
             {
                 "month_name": month_name,
@@ -88,6 +95,8 @@ def api_stats(cursor):
                 "year_count": row_year["cnt"],
                 "week_km": float(row_week["km"]),
                 "week_count": row_week["cnt"],
+                "all_rides_km": float(row_all_rides["km"]),
+                "all_rides_count": row_all_rides["cnt"],
             }
         )
     except Exception as exc:

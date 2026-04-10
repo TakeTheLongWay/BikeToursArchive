@@ -390,8 +390,8 @@ async function loadData() {
         document.getElementById("statsYearKm").textContent = num(stats.year_km, 0).toFixed(1);
         document.getElementById("statsYearCount").textContent = num(stats.year_count, 0);
 
-        document.getElementById("statsAllRidesKm").textContent = num(stats.year_km, 0).toFixed(1);
-        document.getElementById("statsAllRidesCount").textContent = num(stats.year_count, 0);
+        document.getElementById("statsAllRidesKm").textContent = num(stats.all_rides_km, 0).toFixed(1);
+        document.getElementById("statsAllRidesCount").textContent = num(stats.all_rides_count, 0);
 
         renderTours(Array.isArray(tours) ? tours : []);
     } catch (e) {
@@ -399,13 +399,12 @@ async function loadData() {
     }
 }
 
-function renderTours(tours)
-{
+function renderTours(tours) {
     if (!tourTableBody) return;
     tourTableBody.innerHTML = "";
 
     if (tours.length === 0) {
-        tourTableBody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Keine Touren gefunden.</td></tr>';
+        tourTableBody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Keine Touren gefunden.</td></tr>';
         return;
     }
 
@@ -418,9 +417,8 @@ function renderTours(tours)
 
         const nameTd = buildTourNameCell(t);
 
-                // Dummy-Spalte
-        const neuTd = document.createElement("td");
-        neuTd.textContent = t.bike_name ;
+        const bikeTd = document.createElement("td");
+        bikeTd.textContent = t.bike_name || "n/a";
 
         const dateTd = document.createElement("td");
         dateTd.textContent = t.date_display || "";
@@ -433,12 +431,7 @@ function renderTours(tours)
         distanceTd.textContent = num(t.distance_km, 0).toFixed(2);
 
         tr.appendChild(nameTd);
-        tr.appendChild(neuTd);
-
-        const bikeTd = document.createElement("td");
-        bikeTd.textContent = "";   // vorerst leer, später echter Wert
         tr.appendChild(bikeTd);
-
         tr.appendChild(dateTd);
         tr.appendChild(durationTd);
         tr.appendChild(distanceTd);
