@@ -24,8 +24,9 @@ def api_tours(cursor):
         year = request.args.get("year")
 
         sql = (
-            "SELECT activity_id, activity_name, activity_date, elapsed_time_s, distance_km "
-            "FROM activities WHERE 1=1"
+            "SELECT a.activity_id, a.activity_name, a.activity_date, a.elapsed_time_s, a.distance_km, COALESCE(b.name, '') "
+            "AS bike_name FROM activities a LEFT JOIN bike_tour bt ON bt.activity_id = a.activity_id "
+            "LEFT JOIN bikes b ON b.id = bt.bike_id WHERE 1 = 1"
         )
         params = []
 
@@ -63,6 +64,7 @@ def api_tours(cursor):
                     "date_display": format_date_display(row["activity_date"]),
                     "duration_hm": format_duration_hm(row["elapsed_time_s"]),
                     "distance_km": round(float(row["distance_km"] or 0), 2),
+                    "bike_name": row["bike_name"],
                 }
             )
 

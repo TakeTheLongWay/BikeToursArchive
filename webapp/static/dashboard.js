@@ -420,7 +420,7 @@ function renderTours(tours)
 
                 // NEU – Dummy-Spalte
         const neuTd = document.createElement("td");
-        neuTd.textContent = "***";   // Platzhalter statt echter DB-Wert
+        neuTd.textContent = t.bike_name ;
 
 
         const dateTd = document.createElement("td");
