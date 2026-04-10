@@ -418,10 +418,9 @@ function renderTours(tours)
 
         const nameTd = buildTourNameCell(t);
 
-                // NEU – Dummy-Spalte
+                // Dummy-Spalte
         const neuTd = document.createElement("td");
         neuTd.textContent = t.bike_name ;
-
 
         const dateTd = document.createElement("td");
         dateTd.textContent = t.date_display || "";
@@ -434,7 +433,7 @@ function renderTours(tours)
         distanceTd.textContent = num(t.distance_km, 0).toFixed(2);
 
         tr.appendChild(nameTd);
-        tr.appendChild(neuTd);   // NEU
+        tr.appendChild(neuTd);
 
         const bikeTd = document.createElement("td");
         bikeTd.textContent = "";   // vorerst leer, später echter Wert
