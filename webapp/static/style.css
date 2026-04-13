@@ -1,4 +1,4 @@
-/* static/style.css - Version 00.00.11 (Stats Spacing Fix) */
+/* static/style.css - Version 00.00.13 (Bikes Overview Panel) */
 
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -11,7 +11,7 @@ body {
 h1.title {
     text-align: center;
     color: #1C3F75;
-    margin-bottom: 30px;
+    margin-bottom: 25px;
 }
 
 h2, h3 {
@@ -23,7 +23,7 @@ h2, h3 {
     display: flex;
     justify-content: center;
     gap: 15px;
-    margin-bottom: 30px;
+    margin-bottom: 25px;
 }
 
 button {
@@ -59,14 +59,14 @@ button:hover {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    gap: 16px;
-    margin-bottom: 30px;
+    gap: 11px;
+    margin-bottom: 25px;
     flex-wrap: wrap;
 }
 
 #goalSummaryBox {
     display: flex;
-    gap: 10px;
+    gap: 7px;
     flex: 1 1 auto;
     flex-wrap: wrap;
 }
@@ -109,7 +109,7 @@ button:hover {
     padding: 18px 22px;
     border-radius: 12px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-    margin-bottom: 30px;
+    margin-bottom: 25px;
     flex-wrap: wrap;
 }
 
@@ -166,6 +166,10 @@ button:hover {
     text-align: right;
 }
 
+.yearProgressAhead {
+    color: #2eaf4a;
+}
+
 .yearProgressGoal {
     text-align: right;
     font-size: 15px;
@@ -205,7 +209,7 @@ select {
 /* Hauptlayout (Zweispaltig) */
 #mainLayout {
     display: flex;
-    gap: 30px;
+    gap: 25px;
     align-items: flex-start;
 }
 
@@ -220,6 +224,9 @@ select {
 #rightColumn {
     flex: 1;
     max-width: 350px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
 }
 
 /* Tabellen-Styles */
@@ -244,46 +251,74 @@ th {
     background-color: #f4f7fc;
 }
 
-/* Stats Box rechts */
-#statsBox {
+/* Rechte Seitenpanels */
+#statsBox,
+#bikesOverviewBox {
     background: #fff;
     padding: 25px;
     border-radius: 12px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.05);
 }
 
-#statsBox h3 {
-    margin: 28px 0 6px 0;
+#statsBox h3,
+#bikesOverviewBox h3 {
+    margin: 0 0 14px 0;
     font-size: 18px;
 }
 
-#statsBox h3:first-child {
-    margin-top: 0;
-}
-
-#statsTable,
-#statsYearTable,
 #statsAllRidesTable {
     margin-top: 0;
 }
 
-#statsTable td,
-#statsYearTable td,
 #statsAllRidesTable td {
     padding: 8px 0;
     border-bottom: 1px solid #eee;
 }
 
-#statsTable tr:last-child td,
-#statsYearTable tr:last-child td,
 #statsAllRidesTable tr:last-child td {
     border-bottom: none;
 }
 
-#statsTable td:last-child,
-#statsYearTable td:last-child,
 #statsAllRidesTable td:last-child {
     text-align: right;
     font-weight: 600;
     color: #1C3F75;
+}
+
+/* Neues Räder-Panel */
+.bikesOverviewList {
+    margin: 0;
+    padding: 0;
+}
+
+.bikesOverviewRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 16px 0;
+    border-bottom: 1px solid #e0e6f0;
+}
+
+.bikesOverviewRow:last-child {
+    border-bottom: none;
+}
+
+.bikesOverviewName {
+    flex: 1 1 auto;
+    min-width: 0;
+    color: #0077be;
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.bikesOverviewKm {
+    flex: 0 0 auto;
+    color: #333;
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
 }

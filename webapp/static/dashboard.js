@@ -204,9 +204,9 @@ function updateYearProgress(doneYear, goalYear, year) {
     const fillEl = document.getElementById("yearProgressBarFill");
     const percentEl = document.getElementById("yearProgressPercent");
     const goalEl = document.getElementById("yearProgressGoalKm");
-    const behindEl = document.getElementById("yearProgressBehind");
+    const statusEl = document.getElementById("yearProgressBehind");
 
-    if (!fillEl || !percentEl || !goalEl || !behindEl) {
+    if (!fillEl || !percentEl || !goalEl || !statusEl) {
         return;
     }
 
@@ -221,15 +221,25 @@ function updateYearProgress(doneYear, goalYear, year) {
     goalEl.textContent = goal.toFixed(0);
 
     const expectedKm = calculateExpectedYearKm(goal, year);
-    const behindKm = expectedKm - done;
+    const diffKm = expectedKm - done;
 
-    if (behindKm > 0.001) {
-        behindEl.textContent = `${formatKmTwoDecimals(behindKm)} km hinter Soll`;
-        behindEl.style.display = "block";
-    } else {
-        behindEl.textContent = "";
-        behindEl.style.display = "none";
+    statusEl.classList.remove("yearProgressAhead");
+
+    if (diffKm > 0.001) {
+        statusEl.textContent = `${formatKmTwoDecimals(diffKm)} km hinter Soll`;
+        statusEl.style.display = "block";
+        return;
     }
+
+    if (diffKm < -0.001) {
+        statusEl.textContent = `${formatKmTwoDecimals(Math.abs(diffKm))} km vor Soll`;
+        statusEl.classList.add("yearProgressAhead");
+        statusEl.style.display = "block";
+        return;
+    }
+
+    statusEl.textContent = "";
+    statusEl.style.display = "none";
 }
 
 function openDeleteConfirmModal(tourId) {
@@ -380,15 +390,6 @@ async function loadData() {
                 goalWeekPerDayEl.textContent = formatDailyKm(weekDailyKm);
             }
         }
-
-        const monthName = stats.month_name || monthNameFromValue(month);
-        document.getElementById("statsMonthTitle").textContent = `${monthName}:`;
-        document.getElementById("statsMonthKm").textContent = num(stats.month_km, 0).toFixed(1);
-        document.getElementById("statsMonthCount").textContent = num(stats.month_count, 0);
-
-        document.getElementById("statsYearTitle").textContent = `Gesamtleistung ${year}:`;
-        document.getElementById("statsYearKm").textContent = num(stats.year_km, 0).toFixed(1);
-        document.getElementById("statsYearCount").textContent = num(stats.year_count, 0);
 
         document.getElementById("statsAllRidesKm").textContent = num(stats.all_rides_km, 0).toFixed(1);
         document.getElementById("statsAllRidesCount").textContent = num(stats.all_rides_count, 0);

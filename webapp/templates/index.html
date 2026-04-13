@@ -92,9 +92,9 @@
     <button id="btnMyBikes" onclick="window.location.href='{{ url_for('pages.mybikes') }}'">Bikes</button>
 </div>
 
-<div id="filterBox" style="display:flex; justify-content:space-between; align-items:flex-start; gap:16px;">
+<div id="filterBox">
 
-    <div id="goalSummaryBox" style="display:flex; gap:12px; flex-wrap:wrap;">
+    <div id="goalSummaryBox">
 
         <div class="goalFrame">
             <div class="goalFrameTitle">Jahr</div>
@@ -127,7 +127,7 @@
         </div>
     </div>
 
-    <div id="filterControls" style="display:flex; gap:12px; background:#fff; padding:15px; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,0.05);">
+    <div id="filterControls">
         <div>
             <label>Typ</label><br>
             <select id="filterType">
@@ -192,24 +192,37 @@
 
     <div id="rightColumn">
         <div id="statsBox">
-            <h3 id="statsMonthTitle">Monat: </h3>
-            <table id="statsTable">
-                <tr><td>Gesamt km</td><td id="statsMonthKm">0</td></tr>
-                <tr><td>Anzahl Fahrten</td><td id="statsMonthCount">0</td></tr>
-            </table>
-
-            <h3 id="statsYearTitle">Gesamtleistung Jahr: </h3>
-            <table id="statsYearTable">
-                <tr><td>Gesamt km</td><td id="statsYearKm">0</td></tr>
-                <tr><td>Anzahl Fahrten</td><td id="statsYearCount">0</td></tr>
-            </table>
-
-            <h3 id="statsAllRidesTitle">Gesamtleistung alle Fahrten: </h3>
+            <h3 id="statsAllRidesTitle">Alle gespeicherten Fahrten:</h3>
             <table id="statsAllRidesTable">
-                <tr><td>Gesamt km</td><td id="statsAllRidesKm">tbd</td></tr>
-                <tr><td>Anzahl Fahrten</td><td id="statsAllRidesCount">tbd</td></tr>
+                <tr><td>Gesamt km</td><td id="statsAllRidesKm">0</td></tr>
+                <tr><td>Anzahl Fahrten</td><td id="statsAllRidesCount">0</td></tr>
             </table>
+        </div>
 
+        <div id="bikesOverviewBox">
+            <h3>Räder</h3>
+
+            <div class="bikesOverviewList">
+                <div class="bikesOverviewRow">
+                    <span class="bikesOverviewName">CUBE Stereo Hybrid 160 H...</span>
+                    <span class="bikesOverviewKm">4.166,6 km</span>
+                </div>
+
+                <div class="bikesOverviewRow">
+                    <span class="bikesOverviewName">Grizl:ONfly</span>
+                    <span class="bikesOverviewKm">2.565,0 km</span>
+                </div>
+
+                <div class="bikesOverviewRow">
+                    <span class="bikesOverviewName">Kalkhoff Endeavour</span>
+                    <span class="bikesOverviewKm">29.081,6 km</span>
+                </div>
+
+                <div class="bikesOverviewRow">
+                    <span class="bikesOverviewName">Meisterstück Heidel</span>
+                    <span class="bikesOverviewKm">2.222,1 km</span>
+                </div>
+            </div>
         </div>
     </div>
 </div>
