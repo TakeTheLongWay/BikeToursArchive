@@ -12,6 +12,29 @@ const confirmDeleteNo = document.getElementById("confirmDeleteNo");
 
 const DELETE_ICON_SRC = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAACXBIWXMAAAsTAAALEwEAmpwYAAABg0lEQVR4nO2WS0oDQRCGP/AJiiAk4NaduhEVNNE7eA69SERQ8XkVwTu4ia8TOC4FEdREw0jh39AOY6ZDOoI4PxRMV9dM/VVdVT1QokTv2AQSIM1Ior2BI8lx7uT+NwikklB9347SSPL3CMRIa9/HkpYE+P6Bftclgf9DYBe49NZXwDGwMEgCYwHDqAMcyTYqgXHgXM9vinYNmJDUgBOgJZuLUBJpIIED7zZc7PK9Je82PYxJoKPInfMtoOLZVaQzLCsTH8BcLAKpztawrXUTqEqa0tme4TQ0C2kPBFa9aJ3DZubZZaUm3U2vBPLwKptJTzedaUPfObI1/XMMAo85BKrqfff+HTDj7U9J/1REwFXsRhcbF6m1XegR1KW7LiKwEzBcnFifhxbhmdZ7RQRGRaLbn7Brw5b6vKgNV4A28B7ShqFoiEjikciDOX/whlc0DHujuKU+r6swTdaV9rY3ikfiuf/CkG5Bm3A/HZWl3SKP7tzHLLAP3AIv6nWrdiu4+az1J6qvJAJWa1coAAAAAElFTkSuQmCC";
 
+const BIKE_OVERVIEW_CONFIG = [
+    {
+        elementId: "bikeOverviewKmCube",
+        startKm: 4900.0,
+        tourBikeNames: ["ActionTeam 160", "CUBE Stereo Hybrid 160 H..."]
+    },
+    {
+        elementId: "bikeOverviewKmGrizl",
+        startKm: 2439.0,
+        tourBikeNames: ["Grizl:ONfly"]
+    },
+    {
+        elementId: "bikeOverviewKmEndeavour",
+        startKm: 29033.0,
+        tourBikeNames: ["Endeavour", "Kalkhoff Endeavour"]
+    },
+    {
+        elementId: "bikeOverviewKmHeidel",
+        startKm: 2222.0,
+        tourBikeNames: ["Heidel", "Meisterstück Heidel"]
+    }
+];
+
 let pendingDeleteTourId = null;
 
 function num(val, fallback = 0) {
@@ -172,6 +195,13 @@ function formatPercent(value) {
     });
 }
 
+function formatKmOneDecimal(value) {
+    return num(value, 0).toLocaleString("de-DE", {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1
+    });
+}
+
 function formatKmTwoDecimals(value) {
     return num(value, 0).toLocaleString("de-DE", {
         minimumFractionDigits: 2,
@@ -198,6 +228,31 @@ function updateTourNameInTable(tourId, newName) {
     if (nameSpan) {
         nameSpan.textContent = newName;
     }
+}
+
+function normalizeBikeName(value) {
+    return String(value || "").trim().toLowerCase();
+}
+
+function renderBikesOverview(tours) {
+    const safeTours = Array.isArray(tours) ? tours : [];
+
+    BIKE_OVERVIEW_CONFIG.forEach((bikeConfig) => {
+        const targetEl = document.getElementById(bikeConfig.elementId);
+        if (!targetEl) return;
+
+        const matchNames = (bikeConfig.tourBikeNames || []).map(normalizeBikeName);
+        const tourKmSum = safeTours.reduce((sum, tour) => {
+            const bikeName = normalizeBikeName(tour?.bike_name);
+            if (!matchNames.includes(bikeName)) {
+                return sum;
+            }
+            return sum + num(tour?.distance_km, 0);
+        }, 0);
+
+        const resultKm = num(bikeConfig.startKm, 0) + tourKmSum;
+        targetEl.textContent = `${formatKmOneDecimal(resultKm)} km`;
+    });
 }
 
 function updateYearProgress(doneYear, goalYear, year) {
@@ -335,6 +390,7 @@ async function loadData() {
 
         const respTours = await fetch(`/api/tours?type=${encodeURIComponent(type)}&month=${encodeURIComponent(month)}&year=${encodeURIComponent(year)}`);
         const tours = await respTours.json();
+        const safeTours = Array.isArray(tours) ? tours : [];
 
         const goalYear = num(goals.goal_km_year, 0);
         const doneYear = num(stats.year_km, 0);
@@ -394,7 +450,8 @@ async function loadData() {
         document.getElementById("statsAllRidesKm").textContent = num(stats.all_rides_km, 0).toFixed(1);
         document.getElementById("statsAllRidesCount").textContent = num(stats.all_rides_count, 0);
 
-        renderTours(Array.isArray(tours) ? tours : []);
+        renderTours(safeTours);
+        renderBikesOverview(safeTours);
     } catch (e) {
         console.error("Fehler beim Laden der Dashboard-Daten:", e);
     }
