@@ -36,6 +36,8 @@ const BIKE_OVERVIEW_CONFIG = [
 ];
 
 let pendingDeleteTourId = null;
+let currentTours = [];
+let selectedDayDateDisplay = null;
 
 function num(val, fallback = 0) {
     const n = Number(val);
@@ -60,6 +62,61 @@ function monthNameFromValue(monthVal) {
         return names[m - 1];
     }
     return "";
+}
+
+function formatDateDisplay(date) {
+    const day = String(date.getDate()).padStart(2, "0");
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const year = date.getFullYear();
+    return `${day}.${month}.${year}`;
+}
+
+function calculateTodayKm(tours) {
+    const safeTours = Array.isArray(tours) ? tours : [];
+    const todayDisplay = formatDateDisplay(getTodayDateOnly());
+
+    return safeTours.reduce((sum, tour) => {
+        const tourDate = String(tour?.date_display || "").trim();
+        if (tourDate !== todayDisplay) {
+            return sum;
+        }
+        return sum + num(tour?.distance_km, 0);
+    }, 0);
+}
+
+function calculateKmForDateDisplay(tours, dateDisplay) {
+    const safeTours = Array.isArray(tours) ? tours : [];
+    const targetDate = String(dateDisplay || "").trim();
+
+    if (!targetDate) {
+        return 0;
+    }
+
+    return safeTours.reduce((sum, tour) => {
+        const tourDate = String(tour?.date_display || "").trim();
+        if (tourDate !== targetDate) {
+            return sum;
+        }
+        return sum + num(tour?.distance_km, 0);
+    }, 0);
+}
+
+function updateDayKmDisplay(dateDisplay = null, tours = null) {
+    const goalDayKmEl = document.getElementById("goalDayKm");
+    if (!goalDayKmEl) {
+        return;
+    }
+
+    const safeTours = Array.isArray(tours) ? tours : currentTours;
+
+    if (dateDisplay) {
+        const dayKm = calculateKmForDateDisplay(safeTours, dateDisplay);
+        goalDayKmEl.textContent = formatKmOneDecimal(dayKm);
+        return;
+    }
+
+    const todayKm = calculateTodayKm(safeTours);
+    goalDayKmEl.textContent = formatKmOneDecimal(todayKm);
 }
 
 function restText(goalKm, doneKm) {
@@ -392,6 +449,18 @@ async function loadData() {
         const tours = await respTours.json();
         const safeTours = Array.isArray(tours) ? tours : [];
 
+        currentTours = safeTours;
+
+        const selectedDateStillExists = selectedDayDateDisplay
+            ? safeTours.some((tour) => String(tour?.date_display || "").trim() === selectedDayDateDisplay)
+            : false;
+
+        if (!selectedDateStillExists) {
+            selectedDayDateDisplay = null;
+        }
+
+        updateDayKmDisplay(selectedDayDateDisplay, safeTours);
+
         const goalYear = num(goals.goal_km_year, 0);
         const doneYear = num(stats.year_km, 0);
         document.getElementById("goalYearDone").textContent = doneYear.toFixed(0);
@@ -480,6 +549,20 @@ function renderTours(tours) {
 
         const dateTd = document.createElement("td");
         dateTd.textContent = t.date_display || "";
+        dateTd.title = "Linksklick: km dieses Datums im Feld 'Tag km' anzeigen";
+        dateTd.style.cursor = "pointer";
+
+        dateTd.addEventListener("click", (event) => {
+            if (event.button !== 0) {
+                return;
+            }
+
+            event.preventDefault();
+            event.stopPropagation();
+
+            selectedDayDateDisplay = String(t?.date_display || "").trim() || null;
+            updateDayKmDisplay(selectedDayDateDisplay, currentTours);
+        });
 
         const durationTd = document.createElement("td");
         durationTd.textContent = t.duration_hm || "";
