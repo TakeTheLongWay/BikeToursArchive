@@ -84,156 +84,161 @@
 </head>
 <body>
 
-<h1 class="title">MyBikeLog Dashboard</h1>
-
 <div id="MainMenuDashboard">
     <button id="btnImport">Import</button>
     <button id="btnEditGoals" onclick="window.location.href='{{ url_for('pages.mygoals') }}'">Ziele</button>
     <button id="btnMyBikes" onclick="window.location.href='{{ url_for('pages.mybikes') }}'">Bikes</button>
+    <button id="btnSettings">Settings</button>
 </div>
 
-<div id="filterBox">
+<div id="pageContent">
 
-    <div id="goalSummaryBox">
+    <h1 class="title">MyBikeLog Dashboard</h1>
 
-        <div class="goalFrame">
-            <div class="goalFrameTitle">Jahr</div>
-            <div class="goalFrameValue">
-                <span id="goalYearDone">0</span> / <span id="goalYearTotal">0</span> km
+    <div id="filterBox">
+
+        <div id="goalSummaryBox">
+
+            <div class="goalFrame">
+                <div class="goalFrameTitle">Jahr</div>
+                <div class="goalFrameValue">
+                    <span id="goalYearDone">0</span> / <span id="goalYearTotal">0</span> km
+                </div>
+                <div class="goalFrameRest">
+                    Rest: <span id="goalYearRest">0</span> km | <span id="goalYearPerDay">0,0</span> km/Tag
+                </div>
             </div>
-            <div class="goalFrameRest">
-                Rest: <span id="goalYearRest">0</span> km | <span id="goalYearPerDay">0,0</span> km/Tag
+
+            <div class="goalFrame">
+                <div id="goalMonthTitle" class="goalFrameTitle">Monat</div>
+                <div class="goalFrameValue">
+                    <span id="goalMonthDone">0</span> / <span id="goalMonthTotal">0</span> km
+                </div>
+                <div class="goalFrameRest">
+                    Rest: <span id="goalMonthRest">0</span> km | <span id="goalMonthPerDay">0,0</span> km/Tag
+                </div>
             </div>
+
+            <div class="goalFrame">
+                <div class="goalFrameTitle">Woche (Mo-Heute)</div>
+                <div class="goalFrameValue">
+                    <span id="goalWeekDone">0</span> / <span id="goalWeekTotal">0</span> km
+                </div>
+                <div class="goalFrameRest">
+                    Rest: <span id="goalWeekRest">0</span> km | <span id="goalWeekPerDay">0,0</span> km/Tag
+                </div>
+            </div>
+
+            <div class="goalFrame">
+                <div class="goalFrameTitle">Tag km</div>
+                <div class="goalFrameValue">
+                    <span id="goalDayKm">0,0</span> km
+                </div>
+                <div class="goalFrameRest">&nbsp;</div>
+            </div>
+
         </div>
 
-        <div class="goalFrame">
-            <div id="goalMonthTitle" class="goalFrameTitle">Monat</div>
-            <div class="goalFrameValue">
-                <span id="goalMonthDone">0</span> / <span id="goalMonthTotal">0</span> km
+        <div id="filterControls">
+            <div>
+                <label>Typ</label><br>
+                <select id="filterType">
+                    <option value="Alle">Alle</option>
+                    <option value="cycling">Radfahren</option>
+                    <option value="per pedes">Wandern</option>
+                </select>
             </div>
-            <div class="goalFrameRest">
-                Rest: <span id="goalMonthRest">0</span> km | <span id="goalMonthPerDay">0,0</span> km/Tag
+            <div>
+                <label>Monat</label><br>
+                <select id="filterMonth">
+                    <option value="Alle">Alle</option>
+                    {% for m in range(1, 13) %}
+                        <option value="{{ m }}" {% if m == current_month %}selected{% endif %}>{{ m }}</option>
+                    {% endfor %}
+                </select>
             </div>
-        </div>
-
-        <div class="goalFrame">
-            <div class="goalFrameTitle">Woche (Mo-Heute)</div>
-            <div class="goalFrameValue">
-                <span id="goalWeekDone">0</span> / <span id="goalWeekTotal">0</span> km
+            <div>
+                <label>Jahr</label><br>
+                <select id="filterYear">
+                    {% for y in range(current_year - 2, current_year + 2) %}
+                        <option value="{{ y }}" {% if y == current_year %}selected{% endif %}>{{ y }}</option>
+                    {% endfor %}
+                </select>
             </div>
-            <div class="goalFrameRest">
-                Rest: <span id="goalWeekRest">0</span> km | <span id="goalWeekPerDay">0,0</span> km/Tag
-            </div>
-        </div>
-
-        <div class="goalFrame">
-            <div class="goalFrameTitle">Tag km</div>
-            <div class="goalFrameValue">
-                <span id="goalDayKm">0,0</span> km
-            </div>
-            <div class="goalFrameRest">&nbsp;</div>
-        </div>
-
-    </div>
-
-    <div id="filterControls">
-        <div>
-            <label>Typ</label><br>
-            <select id="filterType">
-                <option value="Alle">Alle</option>
-                <option value="cycling">Radfahren</option>
-                <option value="per pedes">Wandern</option>
-            </select>
-        </div>
-        <div>
-            <label>Monat</label><br>
-            <select id="filterMonth">
-                <option value="Alle">Alle</option>
-                {% for m in range(1, 13) %}
-                    <option value="{{ m }}" {% if m == current_month %}selected{% endif %}>{{ m }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        <div>
-            <label>Jahr</label><br>
-            <select id="filterYear">
-                {% for y in range(current_year - 2, current_year + 2) %}
-                    <option value="{{ y }}" {% if y == current_year %}selected{% endif %}>{{ y }}</option>
-                {% endfor %}
-            </select>
-        </div>
-    </div>
-</div>
-
-<div id="yearProgressSection">
-    <div class="yearProgressLabel">Jahresfortschritt</div>
-
-    <div class="yearProgressBarOuter" aria-label="Jahresfortschritt">
-        <div id="yearProgressBarFill" class="yearProgressBarFill" style="width: 0%;">
-            <span id="yearProgressPercent">0,0 %</span>
         </div>
     </div>
 
-    <div class="yearProgressMeta">
-        <div id="yearProgressBehind" class="yearProgressBehind" style="display:none;"></div>
-        <div class="yearProgressGoal">
-            Ziel: <span id="yearProgressGoalKm">0</span> km
+    <div id="yearProgressSection">
+        <div class="yearProgressLabel">Jahresfortschritt</div>
+
+        <div class="yearProgressBarOuter" aria-label="Jahresfortschritt">
+            <div id="yearProgressBarFill" class="yearProgressBarFill" style="width: 0%;">
+                <span id="yearProgressPercent">0,0 %</span>
+            </div>
+        </div>
+
+        <div class="yearProgressMeta">
+            <div id="yearProgressBehind" class="yearProgressBehind" style="display:none;"></div>
+            <div class="yearProgressGoal">
+                Ziel: <span id="yearProgressGoalKm">0</span> km
+            </div>
         </div>
     </div>
-</div>
 
-<div id="mainLayout">
-    <div id="leftColumn">
-        <h2>Touren</h2>
-        <table id="detailTable">
-            <thead>
-                <tr>
-                    <th>Name</th>
-                    <th>Bike</th>
-                    <th>Datum</th>
-                    <th>Dauer</th>
-                    <th style="text-align:right;">km</th>
-                </tr>
-            </thead>
-            <tbody id="tourTableBody"></tbody>
-        </table>
-    </div>
-
-    <div id="rightColumn">
-        <div id="statsBox">
-            <h3 id="statsAllRidesTitle">Alle gespeicherten Fahrten:</h3>
-            <table id="statsAllRidesTable">
-                <tr><td>Gesamt km</td><td id="statsAllRidesKm">0</td></tr>
-                <tr><td>Anzahl Fahrten</td><td id="statsAllRidesCount">0</td></tr>
+    <div id="mainLayout">
+        <div id="leftColumn">
+            <h2>Touren</h2>
+            <table id="detailTable">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Bike</th>
+                        <th>Datum</th>
+                        <th>Dauer</th>
+                        <th style="text-align:right;">km</th>
+                    </tr>
+                </thead>
+                <tbody id="tourTableBody"></tbody>
             </table>
         </div>
 
-        <div id="bikesOverviewBox">
-            <h3>Räder</h3>
+        <div id="rightColumn">
+            <div id="statsBox">
+                <h3 id="statsAllRidesTitle">Alle gespeicherten Fahrten:</h3>
+                <table id="statsAllRidesTable">
+                    <tr><td>Gesamt km</td><td id="statsAllRidesKm">0</td></tr>
+                    <tr><td>Anzahl Fahrten</td><td id="statsAllRidesCount">0</td></tr>
+                </table>
+            </div>
 
-            <div class="bikesOverviewList">
-                <div class="bikesOverviewRow">
-                    <span class="bikesOverviewName">CUBE Stereo Hybrid 160 H...</span>
-                    <span class="bikesOverviewKm" id="bikeOverviewKmCube">0,0 km</span>
-                </div>
+            <div id="bikesOverviewBox">
+                <h3>Räder</h3>
 
-                <div class="bikesOverviewRow">
-                    <span class="bikesOverviewName">Grizl:ONfly</span>
-                    <span class="bikesOverviewKm" id="bikeOverviewKmGrizl">0,0 km</span>
-                </div>
+                <div class="bikesOverviewList">
+                    <div class="bikesOverviewRow">
+                        <span class="bikesOverviewName">CUBE Stereo Hybrid 160 H...</span>
+                        <span class="bikesOverviewKm" id="bikeOverviewKmCube">0,0 km</span>
+                    </div>
 
-                <div class="bikesOverviewRow">
-                    <span class="bikesOverviewName">Kalkhoff Endeavour</span>
-                    <span class="bikesOverviewKm" id="bikeOverviewKmEndeavour">0,0 km</span>
-                </div>
+                    <div class="bikesOverviewRow">
+                        <span class="bikesOverviewName">Grizl:ONfly</span>
+                        <span class="bikesOverviewKm" id="bikeOverviewKmGrizl">0,0 km</span>
+                    </div>
 
-                <div class="bikesOverviewRow">
-                    <span class="bikesOverviewName">Meisterstück Heidel</span>
-                    <span class="bikesOverviewKm" id="bikeOverviewKmHeidel">0,0 km</span>
+                    <div class="bikesOverviewRow">
+                        <span class="bikesOverviewName">Kalkhoff Endeavour</span>
+                        <span class="bikesOverviewKm" id="bikeOverviewKmEndeavour">0,0 km</span>
+                    </div>
+
+                    <div class="bikesOverviewRow">
+                        <span class="bikesOverviewName">Meisterstück Heidel</span>
+                        <span class="bikesOverviewKm" id="bikeOverviewKmHeidel">0,0 km</span>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
+
 </div>
 
 <div id="deleteConfirmModal" class="confirm-modal-backdrop" hidden>
