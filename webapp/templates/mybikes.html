@@ -5,6 +5,38 @@
     <title>Meine Bikes</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <style>
+        #MainMenuDashboard {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding: 12px 10px;
+            background: #1C3F75;
+            align-items: stretch;
+        }
+
+        #MainMenuDashboard button {
+            color: white;
+            background: #4B77BE;
+            border: none;
+            padding: 8px 3px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: background-color 0.2s;
+            width: 100%;
+            text-align: center;
+            box-sizing: border-box;
+        }
+
+        #MainMenuDashboard button:hover {
+            background: #3a5f9e;
+        }
+
+        #btnDashboard {
+            margin-bottom: 5px;
+        }
+
         .bikes-page {
             max-width: 1280px;
             margin: 50px auto;
@@ -195,8 +227,15 @@
     </style>
 </head>
 <body>
+<div id="MainMenuDashboard">
+    <button id="btnDashboard" onclick="window.location.href='{{ url_for('pages.index') }}'">Dashboard</button>
+    <button id="btnImport">Import</button>
+    <button id="btnEditGoals" onclick="window.location.href='{{ url_for('pages.mygoals') }}'">Ziele</button>
+    <button id="btnMyBikes" onclick="window.location.href='{{ url_for('pages.mybikes') }}'">Bikes</button>
+    <button id="btnSettings">Settings</button>
+</div>
+
 <div class="bikes-page">
-    <a href="{{ url_for('pages.index') }}">← Zurück zum Dashboard</a>
     <h1 class="title">Meine Bikes</h1>
 
     {% if success_message %}
@@ -390,5 +429,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 });
 </script>
+</div>
 </body>
 </html>
