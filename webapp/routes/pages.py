@@ -57,7 +57,6 @@ def _load_bikes(cursor):
 @pages_bp.route("/")
 @mysql_connection_wrapper
 def index(cursor):
-    # Route für die Startseite (Dashboard)
     now = datetime.now()
     return render_template(
         "index.html",
@@ -83,7 +82,6 @@ def mybikes(cursor):
         end_date = request.form.get("endDate") or None
 
         if bike_id:
-            # Update bestehendes Rad
             cursor.execute(
                 """
                 UPDATE bikes 
@@ -94,7 +92,6 @@ def mybikes(cursor):
             )
             message = f"Rad '{name}' wurde aktualisiert."
         else:
-            # Neues Rad anlegen
             cursor.execute(
                 """
                 INSERT INTO bikes (name, type, init_km, marke, model, startDate, endDate) 
@@ -116,12 +113,12 @@ def mybikes(cursor):
 @pages_bp.route("/mygoals")
 @mysql_connection_wrapper
 def mygoals(cursor):
-    # Platzhalter für die Ziele-Seite, um BuildErrors zu vermeiden
     return render_template("mygoals.html")
 
 
 @pages_bp.route("/static/vendor/<path:filename>")
-def custom_static(filename):
+def vendor_static(filename):
+    # Name der Funktion auf 'vendor_static' geändert, passend zum url_for im Template
     return send_from_directory(current_app.config["VENDOR_STATIC_DIR"], filename)
 
 
@@ -158,21 +155,21 @@ def tour_detail(cursor, tour_id):
         if os.path.exists(gpx_path):
             coords, total_ascent_m = load_gpx_data(gpx_path)
 
+    # Dictionary-Keys an detail.html angepasst
     tour_data = {
         "id": row["activity_id"],
         "name": row["activity_name"],
-        "date": format_date_display(row["start_time"]),
-        "duration": format_duration_hm(row["duration_sec"]),
-        "distance": row["distance_km"],
-        "avg_speed": row["avg_speed_kmh"],
-        "ascent": total_ascent_m or row.get("ascent_m", 0),
+        "date_display": format_date_display(row["activity_date"]),
+        "duration_hm": format_duration_hm(row["elapsed_time_s"]),
+        "distance_km": row["distance_km"],
+        "total_ascent_m": total_ascent_m or float(row.get("elevation_gain_m") or 0),
         "filename": row["filename"],
+        "coords": coords, # Coords direkt ins Tour-Objekt für das Template
     }
 
     return render_template(
-        "tour_detail.html",
+        "detail.html", # Korrigierter Name der Template-Datei
         tour=tour_data,
-        coords=coords,
         bikes=bikes,
         selected_bike_id=selected_bike_id,
     )
