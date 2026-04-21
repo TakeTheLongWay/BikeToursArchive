@@ -44,350 +44,213 @@
 
         .bikes-layout {
             display: flex;
-            gap: 24px;
+            gap: 30px;
             align-items: flex-start;
         }
 
-        .bikes-form-card,
-        .bikes-table-card {
+        .bikes-table-container {
+            flex: 2;
             background: white;
+            padding: 20px;
             border-radius: 12px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+
+        .bikes-details-panel {
+            flex: 1;
+            background: white;
             padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            position: sticky;
+            top: 20px;
         }
 
-        .bikes-form-card {
-            flex: 0 0 520px;
-        }
-
-        .bikes-table-card {
-            flex: 1 1 auto;
-            min-width: 0;
-        }
-
-        .bike-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 15px 0;
-            border-bottom: 1px solid #e0e6f0;
-            gap: 20px;
-        }
-
-        .bike-item:last-of-type {
-            border-bottom: none;
-        }
-
-        .bike-name {
-            font-weight: 600;
-            color: #1C3F75;
-            width: 36%;
-            flex-shrink: 0;
-        }
-
-        .bike-value-container {
-            display: flex;
-            align-items: center;
-            width: 64%;
-            justify-content: flex-end;
-        }
-
-        .bike-value-input {
+        #bikesTable {
             width: 100%;
-            max-width: 260px;
-            padding: 8px 10px;
-            border-radius: 6px;
-            border: 1px solid #c0d3e9;
+            border-collapse: collapse;
+        }
+
+        #bikesTable th, #bikesTable td {
             text-align: left;
-            box-sizing: border-box;
-            font-size: 14px;
+            padding: 12px;
+            border-bottom: 1px solid #eee;
         }
 
-        .bike-value-input.km-input {
-            text-align: right;
-        }
-
-        .save-button,
-        .secondary-button {
-            color: white;
-            border: none;
-            padding: 10px 18px;
-            border-radius: 6px;
+        #bikesTable tbody tr {
             cursor: pointer;
-            transition: background-color 0.2s;
-            min-width: 140px;
-            font-size: 14px;
-            font-weight: 600;
+            transition: background 0.2s;
         }
 
-        .save-button {
-            background: #4B77BE;
+        #bikesTable tbody tr:hover {
+            background: #f8f9fa;
         }
 
-        .save-button:hover {
-            background: #1C3F75;
+        #bikesTable tbody tr.selected {
+            background: #eef4ff;
+            border-left: 4px solid #4B77BE;
         }
 
-        .secondary-button {
-            background: #7d8fb3;
+        .detail-row {
+            margin-bottom: 15px;
         }
 
-        .secondary-button:hover {
-            background: #61718f;
-        }
-
-        .bike-note {
+        .detail-row label {
+            display: block;
             font-size: 12px;
-            color: #777;
-            margin-top: 14px;
-            line-height: 1.4;
+            font-weight: 600;
+            color: #666;
+            margin-bottom: 4px;
         }
 
-        .message-box {
-            border-radius: 8px;
-            padding: 10px 12px;
-            margin-bottom: 16px;
-            font-size: 14px;
-        }
-
-        .message-box.success {
-            background: #eaf7ec;
-            color: #226637;
-            border: 1px solid #b9e2c2;
-        }
-
-        .message-box.error {
-            background: #fdecec;
-            color: #a33a3a;
-            border: 1px solid #f5c2c2;
+        .detail-row input, .detail-row select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            box-sizing: border-box;
         }
 
         .form-actions {
+            margin-top: 25px;
             display: flex;
-            justify-content: flex-end;
-            gap: 12px;
-            margin-top: 18px;
+            gap: 10px;
         }
 
-        .bikes-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 10px;
+        .btn-save {
+            background: #2eaf4a !important;
+            flex: 2;
         }
 
-        .bikes-table th,
-        .bikes-table td {
-            padding: 12px 10px;
-            border-bottom: 1px solid #e0e6f0;
-            text-align: left;
-            font-size: 14px;
+        .btn-new {
+            background: #666 !important;
+            flex: 1;
         }
 
-        .bikes-table th {
-            color: #1C3F75;
-            font-weight: 700;
-        }
-
-        .bikes-table tbody tr {
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
-
-        .bikes-table tbody tr:hover {
-            background: #f4f7fc;
-        }
-
-        .bikes-table tbody tr.selected {
-            background: #eaf1fb;
-        }
-
-        .table-title {
-            margin-top: 0;
-            margin-bottom: 10px;
-            color: #1C3F75;
-        }
-
-        .empty-state {
-            font-size: 14px;
-            color: #777;
-            margin-top: 10px;
-        }
-
-        @media (max-width: 1100px) {
-            .bikes-layout {
-                flex-direction: column;
-            }
-
-            .bikes-form-card,
-            .bikes-table-card {
-                width: 100%;
-                flex: none;
-            }
+        .msg-success {
+            background: #d4edda;
+            color: #155724;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 20px;
         }
     </style>
 </head>
 <body>
+
 <div id="MainMenuDashboard">
-    <button id="btnDashboard" onclick="window.location.href='{{ url_for('pages.index') }}'">Dashboard</button>
+    <button id="btnDashboard" onclick="window.location.href='/'">Dashboard</button>
     <button id="btnImport">Import</button>
     <button id="btnEditGoals" onclick="window.location.href='{{ url_for('pages.mygoals') }}'">Ziele</button>
     <button id="btnMyBikes" onclick="window.location.href='{{ url_for('pages.mybikes') }}'">Bikes</button>
-    <button id="btnSettings">Settings</button>
 </div>
 
 <div class="bikes-page">
 
-
-    {% if success_message %}
-        <div class="message-box success">{{ success_message }}</div>
-    {% endif %}
-
-    {% if error_message %}
-        <div class="message-box error">{{ error_message }}</div>
+    {% if message %}
+        <div class="msg-success">{{ message }}</div>
     {% endif %}
 
     <div class="bikes-layout">
-        <div class="bikes-form-card">
-            <form method="post" action="{{ url_for('pages.mybikes_save') }}" id="bikeForm">
-                <input type="hidden" id="bike-id" name="id" value="{{ form_data.id }}">
+        <div class="bikes-table-container">
+            <table id="bikesTable">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Typ</th>
+                        <th>Marke / Modell</th>
+                        <th>Seit</th>
+                        <th>Bis</th>
+                        <th style="text-align:right;">Gesamt km</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for b in bikes %}
+                    <tr data-id="{{ b.id }}"
+                        data-name="{{ b.name }}"
+                        data-type="{{ b.type }}"
+                        data-init-km="{{ b.init_km }}"
+                        data-marke="{{ b.marke }}"
+                        data-model="{{ b.model }}"
+                        data-start-date="{{ b.startDate if b.startDate else '' }}"
+                        data-end-date="{{ b.endDate if b.endDate else '' }}">
+                        <td><strong>{{ b.name }}</strong></td>
+                        <td>{{ b.type }}</td>
+                        <td>{{ b.marke }} {{ b.model }}</td>
+                        <td>{{ b.startDate if b.startDate else '-' }}</td>
+                        <td>{{ b.endDate if b.endDate else '-' }}</td>
+                        <td style="text-align:right;">{{ "{:,.1f}".format(b.init_km + b.km_gefahren).replace(",", "X").replace(".", ",").replace("X", ".") }} km</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
 
-                <div class="bike-item">
-                    <label class="bike-name" for="bike-name">Name</label>
-                    <div class="bike-value-container">
-                        <input
-                            id="bike-name"
-                            name="name"
-                            type="text"
-                            class="bike-value-input"
-                            value="{{ form_data.name }}"
-                            maxlength="100"
-                            required
-                        >
-                    </div>
+        <div class="bikes-details-panel">
+            <h3 id="formTitle">Fahrrad Details</h3>
+            <form id="bikeForm" method="POST">
+                <input type="hidden" name="id" id="bike-id">
+
+                <div class="detail-row">
+                    <label>Name</label>
+                    <input type="text" name="name" id="bike-name" required>
                 </div>
 
-                <div class="bike-item">
-                    <label class="bike-name" for="bike-type">Typ</label>
-                    <div class="bike-value-container">
-                        <input
-                            id="bike-type"
-                            name="type"
-                            type="text"
-                            class="bike-value-input"
-                            value="{{ form_data.type }}"
-                            maxlength="100"
-                            required
-                        >
-                    </div>
+                <div class="detail-row">
+                    <label>Typ</label>
+                    <select name="type" id="bike-type">
+                        <option value="MTB">MTB</option>
+                        <option value="E-MTB">E-MTB</option>
+                        <option value="Gravel">Gravel</option>
+                        <option value="Road">Road</option>
+                        <option value="Trekking">Trekking</option>
+                    </select>
                 </div>
 
-                <div class="bike-item">
-                    <label class="bike-name" for="bike-init-km">Start-km-Stand</label>
-                    <div class="bike-value-container">
-                        <input
-                            id="bike-init-km"
-                            name="init_km"
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            class="bike-value-input km-input"
-                            value="{{ form_data.init_km }}"
-                        >
-                    </div>
+                <div class="detail-row">
+                    <label>Initial km (beim Kauf)</label>
+                    <input type="number" step="0.1" name="init_km" id="bike-init-km">
                 </div>
 
-                <div class="bike-item">
-                    <label class="bike-name" for="bike-marke">Marke</label>
-                    <div class="bike-value-container">
-                        <input
-                            id="bike-marke"
-                            name="marke"
-                            type="text"
-                            class="bike-value-input"
-                            value="{{ form_data.marke }}"
-                            maxlength="100"
-                        >
-                    </div>
+                <div class="detail-row">
+                    <label>Marke</label>
+                    <input type="text" name="marke" id="bike-marke">
                 </div>
 
-                <div class="bike-item">
-                    <label class="bike-name" for="bike-model">Model</label>
-                    <div class="bike-value-container">
-                        <input
-                            id="bike-model"
-                            name="model"
-                            type="text"
-                            class="bike-value-input"
-                            value="{{ form_data.model }}"
-                            maxlength="100"
-                        >
-                    </div>
+                <div class="detail-row">
+                    <label>Modell</label>
+                    <input type="text" name="model" id="bike-model">
+                </div>
+
+                <div class="detail-row">
+                    <label>Im Fuhrpark seit</label>
+                    <input type="date" name="startDate" id="bike-startDate">
+                </div>
+
+                <div class="detail-row">
+                    <label>Ausgemustert am</label>
+                    <input type="date" name="endDate" id="bike-endDate">
                 </div>
 
                 <div class="form-actions">
-                    <button type="button" class="secondary-button" id="newBikeButton">Neues Bike</button>
-                    <button type="submit" class="save-button">Bike speichern</button>
+                    <button type="button" class="btn-new" id="newBikeButton">Neu</button>
+                    <button type="submit" class="btn-save">Speichern</button>
                 </div>
             </form>
-
-            <div class="bike-note">
-                Hinweis: Die Spalte „id“ wird automatisch von der Datenbank vergeben und hier bewusst nicht angezeigt.
-            </div>
-        </div>
-
-        <div class="bikes-table-card">
-            <h2 class="table-title">Vorhandene Bikes</h2>
-
-            {% if bikes %}
-                <table class="bikes-table" id="bikesTable">
-                    <thead>
-                        <tr>
-                            <th>Name</th>
-                            <th>Typ</th>
-                            <th>Start-km</th>
-                            <th>Marke</th>
-                            <th>Model</th>
-                            <th># Touren</th>
-                            <th>km gefahren</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for bike in bikes %}
-                            <tr
-                                data-id="{{ bike.id }}"
-                                data-name="{{ bike.name }}"
-                                data-type="{{ bike.type }}"
-                                data-init-km="{{ '%.2f'|format(bike.init_km) }}"
-                                data-marke="{{ bike.marke }}"
-                                data-model="{{ bike.model }}"
-                                {% if form_data.id and form_data.id|string == bike.id|string %}class="selected"{% endif %}
-                            >
-                                <td>{{ bike.name }}</td>
-                                <td>{{ bike.type }}</td>
-                                <td>{{ '%.2f'|format(bike.init_km) }}</td>
-                                <td>{{ bike.marke }}</td>
-                                <td>{{ bike.model }}</td>
-                                <td>{{ bike.tour_count }}</td>
-                                <td>{{ '%.2f'|format(bike.km_gefahren) }}</td>
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            {% else %}
-                <div class="empty-state">Es wurden noch keine Bikes gespeichert.</div>
-            {% endif %}
         </div>
     </div>
 </div>
 
 <script>
-document.addEventListener("DOMContentLoaded", () => {
+    const bikeForm = document.getElementById("bikeForm");
     const bikeIdInput = document.getElementById("bike-id");
     const bikeNameInput = document.getElementById("bike-name");
     const bikeTypeInput = document.getElementById("bike-type");
     const bikeInitKmInput = document.getElementById("bike-init-km");
     const bikeMarkeInput = document.getElementById("bike-marke");
     const bikeModelInput = document.getElementById("bike-model");
+    const bikeStartDateInput = document.getElementById("bike-startDate");
+    const bikeEndDateInput = document.getElementById("bike-endDate");
     const newBikeButton = document.getElementById("newBikeButton");
     const tableRows = document.querySelectorAll("#bikesTable tbody tr");
 
@@ -398,10 +261,12 @@ document.addEventListener("DOMContentLoaded", () => {
     function resetForm() {
         bikeIdInput.value = "";
         bikeNameInput.value = "";
-        bikeTypeInput.value = "";
+        bikeTypeInput.value = "MTB";
         bikeInitKmInput.value = "";
         bikeMarkeInput.value = "";
         bikeModelInput.value = "";
+        bikeStartDateInput.value = "";
+        bikeEndDateInput.value = "";
         clearSelection();
         bikeNameInput.focus();
     }
@@ -409,10 +274,12 @@ document.addEventListener("DOMContentLoaded", () => {
     function fillFormFromRow(row) {
         bikeIdInput.value = row.dataset.id || "";
         bikeNameInput.value = row.dataset.name || "";
-        bikeTypeInput.value = row.dataset.type || "";
+        bikeTypeInput.value = row.dataset.type || "MTB";
         bikeInitKmInput.value = row.dataset.initKm || "";
         bikeMarkeInput.value = row.dataset.marke || "";
         bikeModelInput.value = row.dataset.model || "";
+        bikeStartDateInput.value = row.dataset.startDate || "";
+        bikeEndDateInput.value = row.dataset.endDate || "";
 
         clearSelection();
         row.classList.add("selected");
@@ -424,11 +291,8 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     });
 
-    if (newBikeButton) {
-        newBikeButton.addEventListener("click", resetForm);
-    }
-});
+    newBikeButton.addEventListener("click", resetForm);
 </script>
-</div>
+
 </body>
 </html>
