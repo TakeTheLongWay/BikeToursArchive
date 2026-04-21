@@ -9,9 +9,9 @@ body {
 }
 
 h1.title {
-    text-align: center;
+    text-align: left;
     color: #1C3F75;
-    margin-bottom: 5px;
+    margin-bottom: 0px;
     margin-top: 0px;
 }
 
