@@ -30,15 +30,9 @@ def api_tours(cursor):
             "a.activity_date, "
             "a.elapsed_time_s, "
             "a.distance_km, "
-            "COALESCE(( "
-            "    SELECT b.name "
-            "    FROM bike_tour bt "
-            "    INNER JOIN bikes b ON b.id = bt.bike_id "
-            "    WHERE bt.activity_id = a.activity_id "
-            "    ORDER BY b.id ASC "
-            "    LIMIT 1 "
-            "), '') AS bike_name "
+            "COALESCE(b.name, '') AS bike_name "
             "FROM activities a "
+            "LEFT JOIN bikes b ON b.id = a.bike_id "
             "WHERE 1 = 1"
         )
         params = []
@@ -128,9 +122,11 @@ def api_update_tour_bike(cursor, tour_id):
         if not activity_row:
             return jsonify({"status": "error", "message": "Tour nicht gefunden."}), 404
 
-        cursor.execute("DELETE FROM bike_tour WHERE activity_id = %s", (tour_id,))
-
         if bike_id in (None, "", "null"):
+            cursor.execute(
+                "UPDATE activities SET bike_id = NULL WHERE activity_id = %s",
+                (tour_id,),
+            )
             return jsonify({"status": "ok", "tour_id": tour_id, "bike_id": None})
 
         try:
@@ -144,10 +140,7 @@ def api_update_tour_bike(cursor, tour_id):
             return jsonify({"status": "error", "message": "Bike nicht gefunden."}), 404
 
         cursor.execute(
-            """
-            INSERT INTO bike_tour (bike_id, activity_id)
-            VALUES (%s, %s)
-            """,
+            "UPDATE activities SET bike_id = %s WHERE activity_id = %s",
             (bike_id_int, tour_id),
         )
 

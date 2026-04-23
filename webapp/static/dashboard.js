@@ -103,6 +103,8 @@ function calculateKmForDateDisplay(tours, dateDisplay) {
 
 function updateDayKmDisplay(dateDisplay = null, tours = null) {
     const goalDayKmEl = document.getElementById("goalDayKm");
+    const goalDayDateEl = document.getElementById("goalDayDate");
+
     if (!goalDayKmEl) {
         return;
     }
@@ -112,11 +114,13 @@ function updateDayKmDisplay(dateDisplay = null, tours = null) {
     if (dateDisplay) {
         const dayKm = calculateKmForDateDisplay(safeTours, dateDisplay);
         goalDayKmEl.textContent = formatKmOneDecimal(dayKm);
+        if (goalDayDateEl) goalDayDateEl.textContent = dateDisplay;
         return;
     }
 
     const todayKm = calculateTodayKm(safeTours);
     goalDayKmEl.textContent = formatKmOneDecimal(todayKm);
+    if (goalDayDateEl) goalDayDateEl.textContent = formatDateDisplay(getTodayDateOnly());
 }
 
 function restText(goalKm, doneKm) {

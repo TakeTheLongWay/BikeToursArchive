@@ -32,13 +32,11 @@ def _load_bikes(cursor):
             b.model,
             b.startDate,
             b.endDate,
-            COUNT(DISTINCT bt.activity_id) AS tour_count,
+            COUNT(DISTINCT a.activity_id) AS tour_count,
             COALESCE(SUM(a.distance_km), 0) AS km_gefahren
         FROM bikes b
-        LEFT JOIN bike_tour bt
-            ON bt.bike_id = b.id
         LEFT JOIN activities a
-            ON a.activity_id = bt.activity_id
+            ON a.bike_id = b.id
         GROUP BY
             b.id,
             b.name,
@@ -134,13 +132,7 @@ def tour_detail(cursor, tour_id):
     bikes = _load_bikes(cursor)
 
     cursor.execute(
-        """
-        SELECT bike_id
-        FROM bike_tour
-        WHERE activity_id = %s
-        ORDER BY bike_id ASC
-        LIMIT 1
-        """,
+        "SELECT bike_id FROM activities WHERE activity_id = %s",
         (tour_id,),
     )
     bike_link_row = cursor.fetchone() or {}
