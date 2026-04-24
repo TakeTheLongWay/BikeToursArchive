@@ -25,7 +25,22 @@
         #map {
             height: 620px;
             min-height: 620px;
-            width: 100%;
+            width: calc(100% - 20px);
+            margin-left: 10px;
+            margin-right: 10px;
+        }
+
+        #elevationChart {
+            width: calc(100% - 20px);
+            margin-left: 10px;
+            margin-right: 10px;
+            height: 180px;
+            margin-top: 12px;
+        }
+
+        #elevationChart canvas {
+            width: 100% !important;
+            height: 100% !important;
         }
 
         .tour-metrics-line {
@@ -98,11 +113,11 @@
         </div>
         <div class="metric-item" style="margin-left: 10px; padding-left: 14px; border-left: 1px solid #eee;">
             <span class="metric-label">Distanz:</span>
-            <span class="metric-value">{{ tour.distance_km }} km</span>
+            <span class="metric-value">{{ (tour.distance_km | float) | round(0, 'common') | int }} km</span>
         </div>
         <div class="metric-item" style="margin-left: 10px; padding-left: 14px; border-left: 1px solid #eee;">
             <span class="metric-label">Aufstieg:</span>
-            <span class="metric-value">{{ tour.total_ascent_m }} hm</span>
+            <span class="metric-value">{{ (tour.total_ascent_m | float) | round(0, 'common') | int }} hm</span>
         </div>
         <div class="metric-item" style="margin-left: 10px; padding-left: 14px; border-left: 1px solid #eee;">
             <span class="metric-label">Bike:</span>
