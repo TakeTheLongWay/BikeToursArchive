@@ -12,29 +12,6 @@ const confirmDeleteNo = document.getElementById("confirmDeleteNo");
 
 const DELETE_ICON_SRC = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAACXBIWXMAAAsTAAALEwEAmpwYAAABg0lEQVR4nO2WS0oDQRCGP/AJiiAk4NaduhEVNNE7eA69SERQ8XkVwTu4ia8TOC4FEdREw0jh39AOY6ZDOoI4PxRMV9dM/VVdVT1QokTv2AQSIM1Ior2BI8lx7uT+NwikklB9347SSPL3CMRIa9/HkpYE+P6Bftclgf9DYBe49NZXwDGwMEgCYwHDqAMcyTYqgXHgXM9vinYNmJDUgBOgJZuLUBJpIIED7zZc7PK9Je82PYxJoKPInfMtoOLZVaQzLCsTH8BcLAKpztawrXUTqEqa0tme4TQ0C2kPBFa9aJ3DZubZZaUm3U2vBPLwKptJTzedaUPfObI1/XMMAo85BKrqfff+HTDj7U9J/1REwFXsRhcbF6m1XegR1KW7LiKwEzBcnFifhxbhmdZ7RQRGRaLbn7Brw5b6vKgNV4A28B7ShqFoiEjikciDOX/whlc0DHujuKU+r6swTdaV9rY3ikfiuf/CkG5Bm3A/HZWl3SKP7tzHLLAP3AIv6nWrdiu4+az1J6qvJAJWa1coAAAAAElFTkSuQmCC";
 
-const BIKE_OVERVIEW_CONFIG = [
-    {
-        elementId: "bikeOverviewKmCube",
-        startKm: 4900.0,
-        tourBikeNames: ["ActionTeam 160", "CUBE Stereo Hybrid 160 H..."]
-    },
-    {
-        elementId: "bikeOverviewKmGrizl",
-        startKm: 2439.0,
-        tourBikeNames: ["Grizl:ONfly"]
-    },
-    {
-        elementId: "bikeOverviewKmEndeavour",
-        startKm: 29033.0,
-        tourBikeNames: ["Endeavour", "Kalkhoff Endeavour"]
-    },
-    {
-        elementId: "bikeOverviewKmHeidel",
-        startKm: 2222.0,
-        tourBikeNames: ["Heidel", "Meisterstück Heidel"]
-    }
-];
-
 let pendingDeleteTourId = null;
 let currentTours = [];
 let selectedDayDateDisplay = null;
@@ -101,6 +78,19 @@ function calculateKmForDateDisplay(tours, dateDisplay) {
     }, 0);
 }
 
+function countToursForDate(tours, dateDisplay) {
+    const safeTours = Array.isArray(tours) ? tours : [];
+    const targetDate = String(dateDisplay || "").trim();
+    if (!targetDate) return 0;
+    return safeTours.filter(tour => String(tour?.date_display || "").trim() === targetDate).length;
+}
+
+function rideCountLabel(count) {
+    if (count === 0) return " / keine Fahrten";
+    if (count === 1) return " / 1 Fahrt";
+    return ` / ${count} Fahrten`;
+}
+
 function updateDayKmDisplay(dateDisplay = null, tours = null) {
     const goalDayKmEl = document.getElementById("goalDayKm");
     const goalDayDateEl = document.getElementById("goalDayDate");
@@ -113,14 +103,17 @@ function updateDayKmDisplay(dateDisplay = null, tours = null) {
 
     if (dateDisplay) {
         const dayKm = calculateKmForDateDisplay(safeTours, dateDisplay);
+        const count = countToursForDate(safeTours, dateDisplay);
         goalDayKmEl.textContent = formatKmOneDecimal(dayKm);
-        if (goalDayDateEl) goalDayDateEl.textContent = dateDisplay;
+        if (goalDayDateEl) goalDayDateEl.textContent = dateDisplay + rideCountLabel(count);
         return;
     }
 
+    const todayDisplay = formatDateDisplay(getTodayDateOnly());
     const todayKm = calculateTodayKm(safeTours);
+    const count = countToursForDate(safeTours, todayDisplay);
     goalDayKmEl.textContent = formatKmOneDecimal(todayKm);
-    if (goalDayDateEl) goalDayDateEl.textContent = formatDateDisplay(getTodayDateOnly());
+    if (goalDayDateEl) goalDayDateEl.textContent = todayDisplay + rideCountLabel(count);
 }
 
 function restText(goalKm, doneKm) {
@@ -291,29 +284,40 @@ function updateTourNameInTable(tourId, newName) {
     }
 }
 
-function normalizeBikeName(value) {
-    return String(value || "").trim().toLowerCase();
-}
+async function renderBikesOverview() {
+    const listEl = document.getElementById("bikesOverviewList");
+    if (!listEl) return;
 
-function renderBikesOverview(tours) {
-    const safeTours = Array.isArray(tours) ? tours : [];
+    try {
+        const resp = await fetch("/api/bikes");
+        const bikes = await resp.json();
 
-    BIKE_OVERVIEW_CONFIG.forEach((bikeConfig) => {
-        const targetEl = document.getElementById(bikeConfig.elementId);
-        if (!targetEl) return;
+        listEl.innerHTML = "";
 
-        const matchNames = (bikeConfig.tourBikeNames || []).map(normalizeBikeName);
-        const tourKmSum = safeTours.reduce((sum, tour) => {
-            const bikeName = normalizeBikeName(tour?.bike_name);
-            if (!matchNames.includes(bikeName)) {
-                return sum;
-            }
-            return sum + num(tour?.distance_km, 0);
-        }, 0);
+        if (!Array.isArray(bikes) || bikes.length === 0) {
+            listEl.innerHTML = '<div style="font-size:13px;color:#999;">Keine aktiven Räder.</div>';
+            return;
+        }
 
-        const resultKm = num(bikeConfig.startKm, 0) + tourKmSum;
-        targetEl.textContent = `${formatKmOneDecimal(resultKm)} km`;
-    });
+        bikes.forEach((bike) => {
+            const row = document.createElement("div");
+            row.className = "bikesOverviewRow";
+
+            const nameSpan = document.createElement("span");
+            nameSpan.className = "bikesOverviewName";
+            nameSpan.textContent = bike.name;
+
+            const kmSpan = document.createElement("span");
+            kmSpan.className = "bikesOverviewKm";
+            kmSpan.textContent = formatKmOneDecimal(bike.total_km) + " km";
+
+            row.appendChild(nameSpan);
+            row.appendChild(kmSpan);
+            listEl.appendChild(row);
+        });
+    } catch (e) {
+        console.error("Fehler beim Laden der Bikes:", e);
+    }
 }
 
 function updateYearProgress(doneYear, goalYear, year) {
@@ -524,7 +528,7 @@ async function loadData() {
         document.getElementById("statsAllRidesCount").textContent = num(stats.all_rides_count, 0);
 
         renderTours(safeTours);
-        renderBikesOverview(safeTours);
+        await renderBikesOverview();
     } catch (e) {
         console.error("Fehler beim Laden der Dashboard-Daten:", e);
     }

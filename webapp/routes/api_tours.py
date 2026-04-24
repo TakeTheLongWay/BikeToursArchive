@@ -157,6 +157,42 @@ def api_update_tour_bike(cursor, tour_id):
         return jsonify({"status": "error", "message": str(exc)}), 500
 
 
+@tours_bp.route("/api/bikes", methods=["GET"])
+@mysql_connection_wrapper
+def api_bikes(cursor):
+    try:
+        cursor.execute(
+            """
+            SELECT
+                b.id,
+                b.name,
+                b.init_km,
+                COALESCE(SUM(a.distance_km), 0) AS tour_km
+            FROM bikes b
+            LEFT JOIN activities a ON a.bike_id = b.id
+            WHERE b.endDate IS NULL
+            GROUP BY b.id, b.name, b.init_km
+            ORDER BY b.name ASC
+            """
+        )
+        rows = cursor.fetchall() or []
+        bikes = []
+        for row in rows:
+            init_km = float(row["init_km"] or 0)
+            tour_km = float(row["tour_km"] or 0)
+            bikes.append(
+                {
+                    "id": row["id"],
+                    "name": row["name"],
+                    "total_km": round(init_km + tour_km, 1),
+                }
+            )
+        return jsonify(bikes)
+    except Exception as exc:
+        current_app.logger.error("FEHLER in api_bikes: %s", exc)
+        return jsonify({"error": str(exc)}), 500
+
+
 @tours_bp.route("/api/tours/<int:tour_id>", methods=["DELETE"])
 @mysql_connection_wrapper
 def api_delete_tour(cursor, tour_id):
