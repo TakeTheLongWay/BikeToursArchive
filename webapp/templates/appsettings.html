@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="utf-8">
+    <title>App-Einstellungen</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        #MainMenuDashboard {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding: 12px 16px;
+            background: #1C3F75;
+            align-items: stretch;
+        }
+
+        #MainMenuDashboard button {
+            color: white;
+            background: #4B77BE;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: background-color 0.2s;
+            width: 100%;
+            text-align: center;
+            box-sizing: border-box;
+        }
+
+        #MainMenuDashboard button:hover {
+            background: #3a5f9e;
+        }
+
+        #btnDashboard {
+            margin-bottom: 5px;
+            width: 100%;
+            box-sizing: border-box;
+            text-align: center;
+        }
+
+        .settings-page {
+            max-width: 960px;
+            margin: 40px auto;
+            padding: 0 0;
+        }
+
+        .settings-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            padding: 25px;
+            margin-bottom: 24px;
+        }
+
+        .card-title {
+            margin: 0 0 20px 0;
+            color: #1C3F75;
+            font-size: 17px;
+            font-weight: 700;
+        }
+
+        /* Formular */
+        .form-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #e0e6f0;
+            gap: 20px;
+        }
+
+        .form-row:last-of-type {
+            border-bottom: none;
+        }
+
+        .form-label {
+            font-weight: 600;
+            color: #1C3F75;
+            width: 160px;
+            flex-shrink: 0;
+            font-size: 14px;
+        }
+
+        .form-input {
+            flex: 1;
+            padding: 8px 10px;
+            border-radius: 6px;
+            border: 1px solid #c0d3e9;
+            font-size: 14px;
+            box-sizing: border-box;
+            background: #f9fbfd;
+            color: #1C3F75;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #4B77BE;
+            background: #fff;
+        }
+
+        .form-input[readonly] {
+            background: #eef2f8;
+            color: #999;
+            cursor: not-allowed;
+        }
+
+        .form-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .btn-primary,
+        .btn-secondary,
+        .btn-cancel {
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: background-color 0.2s;
+            min-width: 110px;
+        }
+
+        .btn-primary {
+            background: #4B77BE;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #1C3F75;
+        }
+
+        .btn-secondary {
+            background: #7d8fb3;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #61718f;
+        }
+
+        .btn-cancel {
+            background: #e0e6f0;
+            color: #1C3F75;
+        }
+
+        .btn-cancel:hover {
+            background: #c8d3e8;
+        }
+
+        /* Tabelle */
+        .settings-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .settings-table th,
+        .settings-table td {
+            padding: 11px 10px;
+            border-bottom: 1px solid #e0e6f0;
+            text-align: left;
+            font-size: 14px;
+        }
+
+        .settings-table th {
+            color: #1C3F75;
+            font-weight: 700;
+        }
+
+        .settings-table tbody tr {
+            cursor: pointer;
+            transition: background-color 0.15s;
+        }
+
+        .settings-table tbody tr:hover {
+            background: #f4f7fc;
+        }
+
+        .settings-table tbody tr.selected {
+            background: #eaf1fb;
+        }
+
+        .settings-table td.td-id {
+            color: #aaa;
+            width: 50px;
+        }
+
+        .settings-table td.td-ts {
+            color: #999;
+            font-size: 12px;
+            white-space: nowrap;
+        }
+
+        .empty-state {
+            font-size: 14px;
+            color: #999;
+            margin-top: 8px;
+        }
+
+        /* Message Box */
+        .message-box {
+            border-radius: 8px;
+            padding: 10px 14px;
+            margin-bottom: 18px;
+            font-size: 14px;
+        }
+
+        .message-box.success {
+            background: #eaf7ec;
+            color: #226637;
+            border: 1px solid #b9e2c2;
+        }
+
+        .message-box.error {
+            background: #fdecec;
+            color: #a33a3a;
+            border: 1px solid #f5c2c2;
+        }
+
+        @media (max-width: 700px) {
+            .form-row {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            .form-label {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div id="MainMenuDashboard">
+    <button id="btnDashboard" onclick="window.location.href='{{ url_for('pages.index') }}'">Dashboard</button>
+    <button id="btnImport">Import</button>
+    <button id="btnEditGoals" onclick="window.location.href='{{ url_for('pages.mygoals') }}'">Ziele</button>
+    <button id="btnMyBikes" onclick="window.location.href='{{ url_for('pages.mybikes') }}'">Bikes</button>
+    <button id="btnSettings" onclick="window.location.href='{{ url_for('pages.appsettings') }}'">Settings</button>
+</div>
+
+<div class="settings-page">
+    <h1 class="title">App-Einstellungen</h1>
+
+    <div id="messageBox" class="message-box" style="display:none;"></div>
+
+    <!-- Formular -->
+    <div class="settings-card">
+        <h2 class="card-title">Einstellung bearbeiten</h2>
+
+        <div class="form-row">
+            <label class="form-label" for="fieldId">ID</label>
+            <input id="fieldId" class="form-input" type="text" readonly placeholder="(automatisch)">
+        </div>
+        <div class="form-row">
+            <label class="form-label" for="fieldKey">Key</label>
+            <input id="fieldKey" class="form-input" type="text" maxlength="100" placeholder="z.B. goal.year_km">
+        </div>
+        <div class="form-row">
+            <label class="form-label" for="fieldValue">Value</label>
+            <input id="fieldValue" class="form-input" type="text" placeholder="Wert">
+        </div>
+        <div class="form-row">
+            <label class="form-label" for="fieldDescription">Beschreibung</label>
+            <input id="fieldDescription" class="form-input" type="text" maxlength="255" placeholder="Optionale Beschreibung">
+        </div>
+        <div class="form-actions">
+            <button class="btn-cancel" id="btnAbbrechen">Abbrechen</button>
+            <button class="btn-secondary" id="btnNeu">Neu</button>
+            <button class="btn-primary" id="btnSpeichern">Speichern</button>
+        </div>
+    </div>
+
+    <!-- Tabelle -->
+    <div class="settings-card">
+        <h2 class="card-title">Vorhandene Einstellungen</h2>
+
+        <div id="tableContainer">
+            <div class="empty-state">Lade Einstellungen...</div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+
+    // ── State ──────────────────────────────────────────────────────────────
+    let currentId = null;
+
+    // ── DOM-Referenzen ─────────────────────────────────────────────────────
+    const fieldId          = document.getElementById("fieldId");
+    const fieldKey         = document.getElementById("fieldKey");
+    const fieldValue       = document.getElementById("fieldValue");
+    const fieldDescription = document.getElementById("fieldDescription");
+    const btnNeu           = document.getElementById("btnNeu");
+    const btnSpeichern     = document.getElementById("btnSpeichern");
+    const btnAbbrechen     = document.getElementById("btnAbbrechen");
+    const messageBox       = document.getElementById("messageBox");
+    const tableContainer   = document.getElementById("tableContainer");
+
+    // ── Hilfsfunktionen ────────────────────────────────────────────────────
+    function showMessage(text, type = "success") {
+        messageBox.textContent = text;
+        messageBox.className = `message-box ${type}`;
+        messageBox.style.display = "block";
+        setTimeout(() => { messageBox.style.display = "none"; }, 4000);
+    }
+
+    function resetForm() {
+        currentId = null;
+        fieldId.value          = "";
+        fieldKey.value         = "";
+        fieldValue.value       = "";
+        fieldDescription.value = "";
+        clearSelection();
+        fieldKey.focus();
+    }
+
+    function fillForm(row) {
+        currentId              = row.id;
+        fieldId.value          = row.id;
+        fieldKey.value         = row.setting_key;
+        fieldValue.value       = row.setting_value  ?? "";
+        fieldDescription.value = row.description    ?? "";
+    }
+
+    function clearSelection() {
+        document.querySelectorAll("#settingsTable tbody tr").forEach(tr => {
+            tr.classList.remove("selected");
+        });
+    }
+
+    // ── Tabelle laden ──────────────────────────────────────────────────────
+    async function loadSettings() {
+        try {
+            const resp = await fetch("/api/appsettings");
+            if (!resp.ok) throw new Error("Ladefehler");
+            const data = await resp.json();
+            renderTable(data);
+        } catch (e) {
+            tableContainer.innerHTML = '<div class="empty-state">Fehler beim Laden der Einstellungen.</div>';
+        }
+    }
+
+    function renderTable(rows) {
+        if (!rows || rows.length === 0) {
+            tableContainer.innerHTML = '<div class="empty-state">Noch keine Einstellungen vorhanden.</div>';
+            return;
+        }
+
+        const table = document.createElement("table");
+        table.className = "settings-table";
+        table.id = "settingsTable";
+        table.innerHTML = `
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Key</th>
+                    <th>Value</th>
+                    <th>Beschreibung</th>
+                    <th>Erstellt am</th>
+                    <th>Geändert am</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        `;
+
+        const tbody = table.querySelector("tbody");
+        rows.forEach(row => {
+            const tr = document.createElement("tr");
+            tr.dataset.id = row.id;
+            tr.innerHTML = `
+                <td class="td-id">${row.id}</td>
+                <td><strong>${escHtml(row.setting_key)}</strong></td>
+                <td>${escHtml(row.setting_value ?? "")}</td>
+                <td>${escHtml(row.description ?? "")}</td>
+                <td class="td-ts">${escHtml(row.created_at ?? "")}</td>
+                <td class="td-ts">${escHtml(row.updated_at ?? "")}</td>
+            `;
+            tr.addEventListener("click", () => {
+                clearSelection();
+                tr.classList.add("selected");
+                fillForm(row);
+            });
+            tbody.appendChild(tr);
+        });
+
+        tableContainer.innerHTML = "";
+        tableContainer.appendChild(table);
+
+        // Aktuelle Auswahl wiederherstellen
+        if (currentId !== null) {
+            const sel = tbody.querySelector(`tr[data-id="${currentId}"]`);
+            if (sel) sel.classList.add("selected");
+        }
+    }
+
+    function escHtml(str) {
+        return String(str)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;");
+    }
+
+    // ── Speichern ──────────────────────────────────────────────────────────
+    async function saveEntry() {
+        const key   = fieldKey.value.trim();
+        const value = fieldValue.value.trim();
+        const desc  = fieldDescription.value.trim();
+
+        if (!key) {
+            showMessage("Der Key darf nicht leer sein.", "error");
+            fieldKey.focus();
+            return;
+        }
+
+        const payload = {
+            setting_key:   key,
+            setting_value: value,
+            description:   desc
+        };
+
+        try {
+            let resp;
+            if (currentId) {
+                // Update
+                resp = await fetch(`/api/appsettings/${currentId}`, {
+                    method:  "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body:    JSON.stringify(payload)
+                });
+            } else {
+                // Insert
+                resp = await fetch("/api/appsettings", {
+                    method:  "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body:    JSON.stringify(payload)
+                });
+            }
+
+            const result = await resp.json();
+
+            if (!resp.ok || result.status !== "ok") {
+                throw new Error(result.message || "Speichern fehlgeschlagen.");
+            }
+
+            showMessage(currentId
+                ? `Einstellung '${key}' wurde aktualisiert.`
+                : `Einstellung '${key}' wurde angelegt.`
+            );
+
+            await loadSettings();
+
+            // Neu gespeicherten Eintrag direkt selektieren
+            currentId = result.id;
+            const tr = document.querySelector(`#settingsTable tbody tr[data-id="${result.id}"]`);
+            if (tr) {
+                clearSelection();
+                tr.classList.add("selected");
+                fillForm(result);
+            }
+
+        } catch (e) {
+            showMessage(e.message || "Unbekannter Fehler.", "error");
+        }
+    }
+
+    // ── Button-Events ──────────────────────────────────────────────────────
+    btnNeu.addEventListener("click", resetForm);
+    btnAbbrechen.addEventListener("click", resetForm);
+    btnSpeichern.addEventListener("click", saveEntry);
+
+    // ── Init ───────────────────────────────────────────────────────────────
+    loadSettings();
+});
+</script>
+</body>
+</html>

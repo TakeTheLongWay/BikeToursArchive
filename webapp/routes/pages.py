@@ -62,6 +62,10 @@ def index(cursor):
         current_month=now.month
     )
 
+@pages_bp.route("/appsettings")
+def appsettings():
+    return render_template("appsettings.html")
+
 
 @pages_bp.route("/mybikes", methods=["GET", "POST"])
 @mysql_connection_wrapper

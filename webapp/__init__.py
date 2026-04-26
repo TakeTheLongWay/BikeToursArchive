@@ -5,7 +5,7 @@ from flask import Flask
 
 from .config import Config
 from .db.database import ensure_database
-from .routes import goals_bp, imports_bp, pages_bp, stats_bp, tours_bp
+from .routes import appsettings_bp, goals_bp, imports_bp, pages_bp, stats_bp, tours_bp
 
 
 def create_app():
@@ -27,6 +27,7 @@ def create_app():
     ensure_database()
 
     app.register_blueprint(pages_bp)
+    app.register_blueprint(appsettings_bp)
     app.register_blueprint(imports_bp)
     app.register_blueprint(goals_bp)
     app.register_blueprint(tours_bp)
