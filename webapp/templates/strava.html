@@ -195,12 +195,56 @@
         updateImportButton();
     }));
 
-    // Import-Button (Logik kommt im nächsten Schritt)
-    btnImport.addEventListener("click", () => {
+    // Import-Button
+    btnImport.addEventListener("click", async () => {
         const selected = [...checks]
             .filter(c => c.checked)
             .map(c => c.value);
-        alert("Import vorbereitet für IDs: " + selected.join(", ") + "\n(Importlogik folgt im nächsten Schritt)");
+
+        if (selected.length === 0) return;
+
+        btnImport.disabled = true;
+        hint.textContent = "Wird importiert...";
+
+        try {
+            const resp = await fetch("/strava/import", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ strava_ids: selected }),
+            });
+            const data = await resp.json();
+
+            let msg = `✅ ${data.imported_count} Tour(en) erfolgreich importiert.`;
+            if (data.duplicates && data.duplicates.length > 0) {
+                msg += `\n⚠️ ${data.duplicates.length} bereits vorhanden (übersprungen).`;
+            }
+            if (data.errors && data.errors.length > 0) {
+                msg += `\n❌ ${data.errors.length} Fehler beim Import.`;
+            }
+            alert(msg);
+
+            // Erfolgreich importierte Zeilen ausgrauen
+            data.imported.forEach(item => {
+                const cb = document.querySelector(`.activity-check[value="${item.strava_id}"]`);
+                if (cb) {
+                    cb.closest("tr").style.opacity = "0.4";
+                    cb.disabled = true;
+                }
+            });
+            data.duplicates.forEach(item => {
+                const cb = document.querySelector(`.activity-check[value="${item.strava_id}"]`);
+                if (cb) {
+                    cb.closest("tr").style.opacity = "0.4";
+                    cb.disabled = true;
+                }
+            });
+
+        } catch (err) {
+            alert("Fehler beim Import: " + err);
+        } finally {
+            btnImport.disabled = false;
+            updateImportButton();
+        }
     });
 </script>
 
