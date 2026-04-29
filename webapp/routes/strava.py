@@ -1,6 +1,7 @@
 import os
 import time
 import requests
+import mysql.connector
 from flask import Blueprint, render_template, redirect, request, session, url_for, current_app
 
 strava_bp = Blueprint("strava", __name__)
@@ -16,6 +17,26 @@ def _get_client_id():
 
 def _get_client_secret():
     return current_app.config.get("STRAVA_CLIENT_SECRET") or os.environ.get("STRAVA_CLIENT_SECRET")
+
+
+def _get_initial_row_count():
+    """Liest strava.initial_row_count aus appsettings. Fallback: 5."""
+    try:
+        db_config = current_app.config["DB_CONFIG"]
+        conn = mysql.connector.connect(**db_config)
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT setting_value FROM appsettings WHERE setting_key = %s",
+            ("strava.initial_row_count",)
+        )
+        row = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        if row and row["setting_value"]:
+            return int(row["setting_value"])
+    except Exception as exc:
+        current_app.logger.warning("strava.initial_row_count nicht lesbar: %s", exc)
+    return 5
 
 
 def _token_is_valid():
@@ -53,9 +74,8 @@ def _refresh_token_if_needed():
 
 @strava_bp.route("/strava")
 def strava_index():
-    """Einstiegspunkt: falls kein Token → OAuth starten, sonst Aktivitäten laden."""
+    """Einstiegspunkt: falls kein Token -> OAuth starten, sonst Aktivitaeten laden."""
     if not _refresh_token_if_needed():
-        # OAuth-Flow starten
         client_id = _get_client_id()
         callback_url = url_for("strava.strava_callback", _external=True)
         auth_url = (
@@ -73,8 +93,6 @@ def strava_index():
 @strava_bp.route("/strava/callback")
 def strava_callback():
     """OAuth Callback: Code gegen Token tauschen."""
-    print("CLIENT_ID:", _get_client_id())
-    print("CLIENT_SECRET:", _get_client_secret())
     error = request.args.get("error")
     if error:
         return render_template("strava.html", error="Zugriff auf Strava verweigert.", activities=[])
@@ -99,40 +117,39 @@ def strava_callback():
 
 
 def _load_and_render_activities():
-    """Lädt die letzten 5 Aktivitäten von Strava und rendert die Seite."""
+    """Laedt die letzten N Aktivitaeten von Strava und rendert die Seite."""
     token = session["strava_access_token"]
+    row_count = _get_initial_row_count()
+
     resp = requests.get(
         f"{STRAVA_API_BASE}/athlete/activities",
         headers={"Authorization": f"Bearer {token}"},
-        params={"per_page": 5, "page": 1},
+        params={"per_page": row_count, "page": 1},
     )
 
     if resp.status_code != 200:
-        return render_template("strava.html", error="Fehler beim Abrufen der Aktivitäten.", activities=[])
+        return render_template("strava.html", error="Fehler beim Abrufen der Aktivitaeten.", activities=[])
 
     raw = resp.json()
     activities = []
     for a in raw:
-        # Distanz: Strava liefert Meter → umrechnen in km
         dist_m = a.get("distance", 0)
         dist_km = round(dist_m / 1000, 2) if dist_m else 0
 
-        # Zeit: elapsed_time in Sekunden → h:mm
         elapsed_s = a.get("elapsed_time", 0)
         hours = elapsed_s // 3600
         minutes = (elapsed_s % 3600) // 60
         duration_str = f"{hours}:{minutes:02d} h"
 
-        # Datum formatieren
-        start_date = a.get("start_date_local", "")[:10]  # nur YYYY-MM-DD
+        start_date = a.get("start_date_local", "")[:10]
 
         activities.append({
             "strava_id": a.get("id"),
-            "name": a.get("name", "–"),
-            "sport_type": a.get("sport_type", a.get("type", "–")),
+            "name": a.get("name", "-"),
+            "sport_type": a.get("sport_type", a.get("type", "-")),
             "date": start_date,
             "distance_km": dist_km,
             "duration": duration_str,
         })
 
-    return render_template("strava.html", activities=activities, error=None)
+    return render_template("strava.html", activities=activities, error=None, row_count=row_count)
