@@ -1,12 +1,15 @@
 import logging
 import os
 
+from dotenv import load_dotenv
+load_dotenv()
+
 from flask import Flask
 
 from .config import Config
 from .db.database import ensure_database
 from .routes import appsettings_bp, goals_bp, imports_bp, pages_bp, stats_bp, tours_bp
-
+from .routes.strava import strava_bp
 
 def create_app():
     app = Flask(
@@ -17,6 +20,8 @@ def create_app():
 
     app.config.from_object(Config)
     os.makedirs(app.config["UPLOAD_TMP_DIR"], exist_ok=True)
+
+    app.secret_key = os.environ.get("SECRET_KEY", "ein-langer-zufaelliger-string")
 
     logging.basicConfig(
         level=logging.INFO,
@@ -32,5 +37,6 @@ def create_app():
     app.register_blueprint(goals_bp)
     app.register_blueprint(tours_bp)
     app.register_blueprint(stats_bp)
+    app.register_blueprint(strava_bp)
 
     return app

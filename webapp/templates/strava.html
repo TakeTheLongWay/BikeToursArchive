@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="utf-8">
+    <title>MyBikeLog – Strava Import</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+    <style>
+        #stravaHeader {
+            display: flex;
+            align-items: center;
+            gap: 1em;
+            margin-bottom: 1.2em;
+        }
+
+        #stravaHeader h2 {
+            margin: 0;
+        }
+
+        #stravaTable {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        #stravaTable thead th {
+            text-align: left;
+            padding: 0.5em 0.7em;
+            border-bottom: 2px solid #1f4e8c;
+            color: #1f4e8c;
+        }
+
+        #stravaTable tbody tr:hover {
+            background: #f0f5ff;
+        }
+
+        #stravaTable tbody td {
+            padding: 0.5em 0.7em;
+            border-bottom: 1px solid #dde3ef;
+            vertical-align: middle;
+        }
+
+        #stravaTable tbody td:last-child,
+        #stravaTable thead th:last-child {
+            text-align: right;
+        }
+
+        .strava-checkbox {
+            width: 1.1em;
+            height: 1.1em;
+            cursor: pointer;
+        }
+
+        .sport-badge {
+            font-size: 0.78em;
+            background: #e8eef9;
+            color: #1f4e8c;
+            border-radius: 4px;
+            padding: 2px 7px;
+            white-space: nowrap;
+        }
+
+        #stravaImportBar {
+            margin-top: 1.2em;
+            display: flex;
+            gap: 1em;
+            align-items: center;
+        }
+
+        #btnImportSelected {
+            padding: 0.45em 1.3em;
+            background: #1f4e8c;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            font-size: 1em;
+            cursor: pointer;
+        }
+
+        #btnImportSelected:hover {
+            background: #163a6a;
+        }
+
+        #btnImportSelected:disabled {
+            background: #aab5cc;
+            cursor: not-allowed;
+        }
+
+        .strava-error {
+            color: #c0392b;
+            background: #fdecea;
+            border-radius: 8px;
+            padding: 0.8em 1.2em;
+            margin-top: 1em;
+        }
+
+        #selectAllRow {
+            margin-bottom: 0.5em;
+            display: flex;
+            align-items: center;
+            gap: 0.5em;
+            font-size: 0.92em;
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+
+<div id="MainMenuDashboard">
+    <button onclick="window.location.href='{{ url_for('pages.index') }}'">← Dashboard</button>
+</div>
+
+<div id="pageContent">
+
+    <div id="stravaHeader">
+        <h2>Strava Aktivitäten</h2>
+        <span style="color:#888; font-size:0.92em;">Letzte 5 Aktivitäten</span>
+    </div>
+
+    {% if error %}
+        <div class="strava-error">⚠️ {{ error }}</div>
+    {% elif activities %}
+
+        <div id="selectAllRow">
+            <input type="checkbox" id="checkAll" class="strava-checkbox">
+            <label for="checkAll">Alle auswählen</label>
+        </div>
+
+        <table id="stravaTable">
+            <thead>
+                <tr>
+                    <th style="width:2.5em;"></th>
+                    <th>Name</th>
+                    <th>Typ</th>
+                    <th>Datum</th>
+                    <th>Zeit</th>
+                    <th>km</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for a in activities %}
+                <tr>
+                    <td>
+                        <input
+                            type="checkbox"
+                            class="strava-checkbox activity-check"
+                            value="{{ a.strava_id }}"
+                            aria-label="{{ a.name }} auswählen"
+                        >
+                    </td>
+                    <td>{{ a.name }}</td>
+                    <td><span class="sport-badge">{{ a.sport_type }}</span></td>
+                    <td>{{ a.date }}</td>
+                    <td>{{ a.duration }}</td>
+                    <td style="text-align:right;">{{ "%.2f"|format(a.distance_km) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <div id="stravaImportBar">
+            <button id="btnImportSelected" disabled>Auswahl übernehmen</button>
+            <span id="importHint" style="color:#888; font-size:0.9em;">Bitte mindestens eine Tour auswählen</span>
+        </div>
+
+    {% else %}
+        <p style="color:#888;">Keine Aktivitäten gefunden.</p>
+    {% endif %}
+
+</div>
+
+<script>
+    // Alle auswählen
+    const checkAll = document.getElementById("checkAll");
+    const checks = document.querySelectorAll(".activity-check");
+    const btnImport = document.getElementById("btnImportSelected");
+    const hint = document.getElementById("importHint");
+
+    function updateImportButton() {
+        const anyChecked = [...checks].some(c => c.checked);
+        btnImport.disabled = !anyChecked;
+        hint.textContent = anyChecked
+            ? [...checks].filter(c => c.checked).length + " Tour(en) ausgewählt"
+            : "Bitte mindestens eine Tour auswählen";
+    }
+
+    if (checkAll) {
+        checkAll.addEventListener("change", () => {
+            checks.forEach(c => c.checked = checkAll.checked);
+            updateImportButton();
+        });
+    }
+
+    checks.forEach(c => c.addEventListener("change", () => {
+        checkAll.checked = [...checks].every(c => c.checked);
+        updateImportButton();
+    }));
+
+    // Import-Button (Logik kommt im nächsten Schritt)
+    btnImport.addEventListener("click", () => {
+        const selected = [...checks]
+            .filter(c => c.checked)
+            .map(c => c.value);
+        alert("Import vorbereitet für IDs: " + selected.join(", ") + "\n(Importlogik folgt im nächsten Schritt)");
+    });
+</script>
+
+</body>
+</html>
