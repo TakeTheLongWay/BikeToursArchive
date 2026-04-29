@@ -98,13 +98,36 @@ def strava_callback():
     return redirect(url_for("strava.strava_index"))
 
 
+
+def _get_initial_row_count():
+    """Liest strava.initial_row_count aus appsettings. Fallback: 5."""
+    import mysql.connector
+    try:
+        db_config = current_app.config["DB_CONFIG"]
+        conn = mysql.connector.connect(**db_config)
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT setting_value FROM appsettings WHERE setting_key = %s",
+            ("strava.initial_row_count",)
+        )
+        row = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        if row and row["setting_value"]:
+            return int(row["setting_value"])
+    except Exception as exc:
+        current_app.logger.warning("strava.initial_row_count nicht lesbar: %s", exc)
+    return 5
+
+
 def _load_and_render_activities():
-    """Lädt die letzten 5 Aktivitäten von Strava und rendert die Seite."""
+    """Lädt die letzten N Aktivitäten von Strava und rendert die Seite."""
     token = session["strava_access_token"]
+    row_count = _get_initial_row_count()
     resp = requests.get(
         f"{STRAVA_API_BASE}/athlete/activities",
         headers={"Authorization": f"Bearer {token}"},
-        params={"per_page": 5, "page": 1},
+        params={"per_page": row_count, "page": 1},
     )
 
     if resp.status_code != 200:
