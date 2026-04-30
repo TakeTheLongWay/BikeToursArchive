@@ -132,6 +132,24 @@
                 {% endfor %}
             </select>
         </div>
+        <div class="metric-item" style="margin-left: auto;">
+            <a
+                id="btnGpxDownload"
+                href="/api/tours/{{ tour.id }}/gpx"
+                download
+                style="
+                    display: inline-block;
+                    padding: 6px 14px;
+                    background: #1f4e8c;
+                    color: #fff;
+                    border-radius: 6px;
+                    font-size: 13px;
+                    font-weight: 600;
+                    text-decoration: none;
+                    white-space: nowrap;
+                "
+            >⬇ GPX Download</a>
+        </div>
     </div>
 
     <div id="mainLayout">

@@ -1,6 +1,7 @@
+import os
 from datetime import date
 
-from flask import Blueprint, current_app, jsonify, request
+from flask import Blueprint, current_app, jsonify, request, send_file
 
 from ..db.database import mysql_connection_wrapper
 from ..utils import (
@@ -191,6 +192,45 @@ def api_bikes(cursor):
     except Exception as exc:
         current_app.logger.error("FEHLER in api_bikes: %s", exc)
         return jsonify({"error": str(exc)}), 500
+
+
+
+@tours_bp.route("/api/tours/<int:tour_id>/gpx", methods=["GET"])
+@mysql_connection_wrapper
+def api_download_gpx(cursor, tour_id):
+    try:
+        cursor.execute(
+            "SELECT activity_name, filename FROM activities WHERE activity_id = %s",
+            (tour_id,)
+        )
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"status": "error", "message": "Tour nicht gefunden."}), 404
+
+        filename = row.get("filename")
+        if not filename:
+            return jsonify({"status": "error", "message": "Keine GPX-Datei vorhanden."}), 404
+
+        gpx_base = current_app.config["GPX_BASE_PATH"]
+        gpx_path = os.path.join(gpx_base, filename)
+
+        if not os.path.exists(gpx_path):
+            return jsonify({"status": "error", "message": "GPX-Datei nicht gefunden."}), 404
+
+        # Dateiname aus Tourname ableiten (Sonderzeichen bereinigen)
+        tour_name = row.get("activity_name", f"tour_{tour_id}")
+        safe_name = "".join(c if c.isalnum() or c in " _-" else "_" for c in tour_name).strip()
+        download_name = f"{safe_name}.gpx"
+
+        return send_file(
+            gpx_path,
+            as_attachment=True,
+            download_name=download_name,
+            mimetype="application/gpx+xml",
+        )
+    except Exception as exc:
+        current_app.logger.error("FEHLER beim GPX-Download Tour %s: %s", tour_id, exc)
+        return jsonify({"status": "error", "message": str(exc)}), 500
 
 
 @tours_bp.route("/api/tours/<int:tour_id>", methods=["DELETE"])
