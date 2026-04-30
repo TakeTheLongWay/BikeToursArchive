@@ -102,3 +102,40 @@ def api_stats(cursor):
     except Exception as exc:
         current_app.logger.error("FEHLER in api_stats: %s", exc)
         return jsonify({"error": str(exc)}), 500
+
+@stats_bp.route("/api/stats/monthly-comparison", methods=["GET"])
+@mysql_connection_wrapper
+def api_monthly_comparison(cursor):
+    """Liefert Monats-km für zwei Jahre zum Vergleich."""
+    try:
+        today = date.today()
+        year_current = today.year
+        year_prev = year_current - 1
+
+        result = {}
+        for year in [year_current, year_prev]:
+            cursor.execute(
+                """
+                SELECT MONTH(activity_date) AS month,
+                       COALESCE(SUM(distance_km), 0) AS km
+                FROM activities
+                WHERE YEAR(activity_date) = %s
+                GROUP BY MONTH(activity_date)
+                ORDER BY MONTH(activity_date)
+                """,
+                (year,)
+            )
+            rows = cursor.fetchall()
+            monthly = {r["month"]: round(float(r["km"]), 1) for r in rows}
+            result[year] = [monthly.get(m, 0) for m in range(1, 13)]
+
+        return jsonify({
+            "year_current": year_current,
+            "year_prev": year_prev,
+            "current": result[year_current],
+            "prev": result[year_prev],
+            "current_month": today.month,
+        })
+    except Exception as exc:
+        current_app.logger.error("FEHLER in api_monthly_comparison: %s", exc)
+        return jsonify({"error": str(exc)}), 500

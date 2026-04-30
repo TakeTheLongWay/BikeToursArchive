@@ -118,6 +118,11 @@ def mygoals(cursor):
     return render_template("mygoals.html")
 
 
+@pages_bp.route("/kmyear")
+def kmyear():
+    return render_template("km_year.html")
+
+
 @pages_bp.route("/static/vendor/<path:filename>")
 def vendor_static(filename):
     # Name der Funktion auf 'vendor_static' geändert, passend zum url_for im Template
