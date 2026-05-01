@@ -109,7 +109,11 @@ def api_monthly_comparison(cursor):
     """Liefert Monats-km für zwei Jahre zum Vergleich."""
     try:
         today = date.today()
-        year_current = today.year
+        # Optionaler year-Parameter, Fallback auf aktuelles Jahr
+        try:
+            year_current = int(request.args.get("year", today.year))
+        except (ValueError, TypeError):
+            year_current = today.year
         year_prev = year_current - 1
 
         result = {}

@@ -173,6 +173,18 @@
 <body>
 
 <div id="MainMenuDashboard">
+    <select id="yearSelect" style="
+        padding: 5px 10px;
+        border-radius: 6px;
+        border: 1px solid #c0d3e9;
+        background: #f9fbfd;
+        color: #1f4e8c;
+        font-size: 0.9em;
+        font-weight: 600;
+        outline: none;
+        cursor: pointer;
+        height: 32px;
+    "></select>
     <button onclick="window.location.href='{{ url_for('pages.index') }}'">← Dashboard</button>
 </div>
 
@@ -204,10 +216,31 @@
 <script>
 const MONTHS = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
 
-async function loadData() {
-    const resp = await fetch("/api/stats/monthly-comparison");
+// Combobox mit Jahren befüllen (aktuelles Jahr bis 2024)
+function buildYearSelect() {
+    const select = document.getElementById("yearSelect");
+    const currentYear = new Date().getFullYear();
+    for (let y = currentYear; y >= 2018; y--) {
+        const opt = document.createElement("option");
+        opt.value = y;
+        opt.textContent = y;
+        select.appendChild(opt);
+    }
+    select.addEventListener("change", () => {
+        loadData(parseInt(select.value)).then(buildChart).catch(showError);
+    });
+}
+
+async function loadData(year) {
+    const y = year || new Date().getFullYear();
+    const resp = await fetch(`/api/stats/monthly-comparison?year=${y}`);
     if (!resp.ok) throw new Error("API-Fehler");
     return await resp.json();
+}
+
+function showError(err) {
+    document.getElementById("chartContainer").innerHTML =
+        `<div style="color:#c0392b;">Fehler beim Laden: ${err.message}</div>`;
 }
 
 function buildChart(data) {
@@ -233,7 +266,8 @@ function buildChart(data) {
     html += `<div class="bars-row">`;
     for (let i = 0; i < 12; i++) {
         const km = current[i];
-        const isFuture = (i + 1) > current_month;
+        const isCurrentYear = year_current === new Date().getFullYear();
+        const isFuture = isCurrentYear && (i + 1) > current_month;
         const heightPct = isFuture ? 0 : (km / maxKm * 100);
         const cls = isFuture ? "future" : "current";
         const label = (km > 0 && !isFuture) ? `${km.toFixed(0)}` : "";
@@ -247,7 +281,8 @@ function buildChart(data) {
     // ── Differenz-Zeile ──
     html += `<div class="diff-row">`;
     for (let i = 0; i < 12; i++) {
-        const isFuture = (i + 1) > current_month;
+        const isCurrentYear = year_current === new Date().getFullYear();
+        const isFuture = isCurrentYear && (i + 1) > current_month;
         if (isFuture) {
             html += `<div class="diff-cell zero">–</div>`;
             continue;
@@ -291,12 +326,8 @@ function buildChart(data) {
     document.getElementById("chartContainer").innerHTML = html;
 }
 
-loadData()
-    .then(buildChart)
-    .catch(err => {
-        document.getElementById("chartContainer").innerHTML =
-            `<div style="color:#c0392b;">Fehler beim Laden: ${err.message}</div>`;
-    });
+buildYearSelect();
+loadData().then(buildChart).catch(showError);
 </script>
 
 </body>
