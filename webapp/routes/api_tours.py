@@ -242,7 +242,6 @@ def api_delete_tour(cursor, tour_id):
         if not row:
             return jsonify({"status": "error", "message": "Tour nicht gefunden."}), 404
 
-        cursor.execute("DELETE FROM bike_tour WHERE activity_id = %s", (tour_id,))
         cursor.execute("DELETE FROM activities WHERE activity_id = %s", (tour_id,))
 
         return jsonify({"status": "ok", "tour_id": tour_id})
