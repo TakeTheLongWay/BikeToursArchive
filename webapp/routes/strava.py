@@ -9,6 +9,8 @@ STRAVA_AUTH_URL = "https://www.strava.com/oauth/authorize"
 STRAVA_TOKEN_URL = "https://www.strava.com/oauth/token"
 STRAVA_API_BASE = "https://www.strava.com/api/v3"
 
+SESSION_KEYS = ("strava_access_token", "strava_refresh_token", "strava_token_expires_at")
+
 
 def _get_client_id():
     return current_app.config.get("STRAVA_CLIENT_ID") or os.environ.get("STRAVA_CLIENT_ID")
@@ -16,6 +18,18 @@ def _get_client_id():
 
 def _get_client_secret():
     return current_app.config.get("STRAVA_CLIENT_SECRET") or os.environ.get("STRAVA_CLIENT_SECRET")
+
+
+def _clear_tokens():
+    """Entfernt alle Strava-Tokens aus der Session."""
+    for key in SESSION_KEYS:
+        session.pop(key, None)
+
+
+def _store_tokens(data):
+    session["strava_access_token"] = data["access_token"]
+    session["strava_refresh_token"] = data["refresh_token"]
+    session["strava_token_expires_at"] = data["expires_at"]
 
 
 def _token_is_valid():
@@ -42,61 +56,68 @@ def _refresh_token_if_needed():
     })
 
     if resp.status_code != 200:
+        current_app.logger.error(
+            "Strava Token-Refresh Fehler %s: %s", resp.status_code, resp.text[:500]
+        )
+        _clear_tokens()
         return False
 
-    data = resp.json()
-    session["strava_access_token"] = data["access_token"]
-    session["strava_refresh_token"] = data["refresh_token"]
-    session["strava_token_expires_at"] = data["expires_at"]
+    _store_tokens(resp.json())
     return True
+
+
+def _start_oauth():
+    callback_url = url_for("strava.strava_callback", _external=True)
+    auth_url = (
+        f"{STRAVA_AUTH_URL}"
+        f"?client_id={_get_client_id()}"
+        f"&redirect_uri={callback_url}"
+        f"&response_type=code"
+        f"&scope=activity:read_all"
+    )
+    return redirect(auth_url)
+
+
+def _error_page(message):
+    return render_template("strava.html", error=message, activities=[])
 
 
 @strava_bp.route("/strava")
 def strava_index():
     """Einstiegspunkt: falls kein Token → OAuth starten, sonst Aktivitäten laden."""
     if not _refresh_token_if_needed():
-        # OAuth-Flow starten
-        client_id = _get_client_id()
-        callback_url = url_for("strava.strava_callback", _external=True)
-        auth_url = (
-            f"{STRAVA_AUTH_URL}"
-            f"?client_id={client_id}"
-            f"&redirect_uri={callback_url}"
-            f"&response_type=code"
-            f"&scope=activity:read_all"
-        )
-        return redirect(auth_url)
-
+        return _start_oauth()
     return _load_and_render_activities()
+
+
+@strava_bp.route("/strava/reset")
+def strava_reset():
+    """Löscht gespeicherte Tokens und startet den OAuth-Flow neu."""
+    _clear_tokens()
+    return redirect(url_for("strava.strava_index"))
 
 
 @strava_bp.route("/strava/callback")
 def strava_callback():
     """OAuth Callback: Code gegen Token tauschen."""
-    print("CLIENT_ID:", _get_client_id())
-    print("CLIENT_SECRET:", _get_client_secret())
-    error = request.args.get("error")
-    if error:
-        return render_template("strava.html", error="Zugriff auf Strava verweigert.", activities=[])
+    if request.args.get("error"):
+        return _error_page("Zugriff auf Strava verweigert.")
 
-    code = request.args.get("code")
     resp = requests.post(STRAVA_TOKEN_URL, data={
         "client_id": _get_client_id(),
         "client_secret": _get_client_secret(),
-        "code": code,
+        "code": request.args.get("code"),
         "grant_type": "authorization_code",
     })
 
     if resp.status_code != 200:
-        return render_template("strava.html", error="Token-Austausch fehlgeschlagen.", activities=[])
+        current_app.logger.error(
+            "Strava Token-Austausch Fehler %s: %s", resp.status_code, resp.text[:500]
+        )
+        return _error_page(f"Token-Austausch fehlgeschlagen (HTTP {resp.status_code}).")
 
-    data = resp.json()
-    session["strava_access_token"] = data["access_token"]
-    session["strava_refresh_token"] = data["refresh_token"]
-    session["strava_token_expires_at"] = data["expires_at"]
-
+    _store_tokens(resp.json())
     return redirect(url_for("strava.strava_index"))
-
 
 
 def _get_initial_row_count():
@@ -120,45 +141,54 @@ def _get_initial_row_count():
     return 5
 
 
+def _format_activity(a):
+    """Wandelt eine Strava-Aktivität in das Anzeigeformat um."""
+    dist_m = a.get("distance", 0)
+    dist_km = round(dist_m / 1000, 2) if dist_m else 0
+
+    elapsed_s = a.get("elapsed_time", 0)
+    hours = elapsed_s // 3600
+    minutes = (elapsed_s % 3600) // 60
+
+    return {
+        "strava_id": a.get("id"),
+        "name": a.get("name", "–"),
+        "sport_type": a.get("sport_type", a.get("type", "–")),
+        "date": a.get("start_date_local", "")[:10],
+        "distance_km": dist_km,
+        "duration": f"{hours}:{minutes:02d} h",
+    }
+
+
 def _load_and_render_activities():
     """Lädt die letzten N Aktivitäten von Strava und rendert die Seite."""
     token = session["strava_access_token"]
     row_count = _get_initial_row_count()
-    resp = requests.get(
-        f"{STRAVA_API_BASE}/athlete/activities",
-        headers={"Authorization": f"Bearer {token}"},
-        params={"per_page": row_count, "page": 1},
-    )
+
+    try:
+        resp = requests.get(
+            f"{STRAVA_API_BASE}/athlete/activities",
+            headers={"Authorization": f"Bearer {token}"},
+            params={"per_page": row_count, "page": 1},
+            timeout=15,
+        )
+    except requests.RequestException as exc:
+        current_app.logger.error("Strava activities Netzwerkfehler: %s", exc)
+        return _error_page(f"Strava nicht erreichbar: {exc}")
 
     if resp.status_code != 200:
-        return render_template("strava.html", error="Fehler beim Abrufen der Aktivitäten.", activities=[])
+        current_app.logger.error(
+            "Strava activities Fehler %s: %s", resp.status_code, resp.text[:500]
+        )
+        if resp.status_code == 401:
+            _clear_tokens()
+        return _error_page(
+            f"Fehler beim Abrufen der Aktivitäten (HTTP {resp.status_code}). Details im Server-Log."
+        )
 
-    raw = resp.json()
-    activities = []
-    for a in raw:
-        # Distanz: Strava liefert Meter → umrechnen in km
-        dist_m = a.get("distance", 0)
-        dist_km = round(dist_m / 1000, 2) if dist_m else 0
-
-        # Zeit: elapsed_time in Sekunden → h:mm
-        elapsed_s = a.get("elapsed_time", 0)
-        hours = elapsed_s // 3600
-        minutes = (elapsed_s % 3600) // 60
-        duration_str = f"{hours}:{minutes:02d} h"
-
-        # Datum formatieren
-        start_date = a.get("start_date_local", "")[:10]  # nur YYYY-MM-DD
-
-        activities.append({
-            "strava_id": a.get("id"),
-            "name": a.get("name", "–"),
-            "sport_type": a.get("sport_type", a.get("type", "–")),
-            "date": start_date,
-            "distance_km": dist_km,
-            "duration": duration_str,
-        })
-
+    activities = [_format_activity(a) for a in resp.json()]
     return render_template("strava.html", activities=activities, error=None)
+
 
 @strava_bp.route("/strava/import", methods=["POST"])
 def strava_import():
@@ -179,7 +209,6 @@ def strava_import():
 
     for strava_id in strava_ids:
         try:
-            # 1. Aktivitaets-Details holen
             resp = requests.get(
                 f"{STRAVA_API_BASE}/activities/{strava_id}",
                 headers={"Authorization": f"Bearer {token}"},
@@ -189,25 +218,16 @@ def strava_import():
                 continue
 
             activity_data = resp.json()
-
-            # 2. In DB speichern
             activity_id = insert_strava_activity(activity_data)
 
-            # 3. GPS-Streams abrufen und als GPX speichern
             streams_resp = requests.get(
                 f"{STRAVA_API_BASE}/activities/{strava_id}/streams",
                 headers={"Authorization": f"Bearer {token}"},
                 params={"keys": "latlng,altitude", "key_by_type": "true"},
             )
             current_app.logger.info("Streams Status: %s", streams_resp.status_code)
-            current_app.logger.info("Streams Body: %s", streams_resp.text[:500])
             if streams_resp.status_code == 200:
-                streams_data = streams_resp.json()
-                current_app.logger.info("Streams Typ: %s, Keys: %s",
-                    type(streams_data).__name__,
-                    list(streams_data.keys()) if isinstance(streams_data, dict) else len(streams_data) if isinstance(streams_data, list) else "?"
-                )
-                save_strava_gpx(activity_id, activity_data, streams_data)
+                save_strava_gpx(activity_id, activity_data, streams_resp.json())
             else:
                 current_app.logger.warning(
                     "Keine GPS-Streams fuer Aktivitaet %s (Status %s): %s",
@@ -217,7 +237,6 @@ def strava_import():
             imported.append({"strava_id": strava_id, "activity_id": activity_id})
 
         except ValueError as e:
-            # Duplikat
             duplicates.append({"strava_id": strava_id, "error": str(e)})
         except Exception as e:
             current_app.logger.error("Strava-Import Fehler %s: %s", strava_id, e)
