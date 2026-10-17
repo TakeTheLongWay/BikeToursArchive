@@ -12,152 +12,197 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <style>
-        #mainLayout {
-            display: block !important;
-            width: 100% !important;
+        .tour-title {
+            display: flex;
+            align-items: baseline;
+            gap: 12px;
+            flex-wrap: wrap;
         }
 
-        #leftColumn {
-            width: 100% !important;
-            max-width: 100% !important;
+        #tourNameValue {
+            cursor: text;
+            border-radius: 6px;
+            outline: none;
+        }
+
+        #tourNameValue[contenteditable="true"] {
+            background: #fff;
+            box-shadow: 0 0 0 2px #4B77BE;
+            padding: 0 6px;
+        }
+
+        .tour-title-hint {
+            font-size: 12px;
+            font-weight: 400;
+            color: #999;
+        }
+
+        /* Kopfzeile wie Dashboard: Werte links, Bike/Download rechts */
+        #tourTopRow {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 5px;
+            flex-wrap: wrap;
+            align-items: stretch;
+        }
+
+        #tourStatsBox {
+            display: flex;
+            gap: 5px;
+            flex: 1 1 auto;
+            flex-wrap: wrap;
+        }
+
+        #tourStatsBox .goalFrame {
+            max-width: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        #tourStatsBox .goalFrameValue {
+            margin-bottom: 0;
+        }
+
+        #tourActionsBox {
+            flex: 0 0 var(--dashboard-side-width);
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 10px;
+            background: #fff;
+            padding: 15px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        #tourActionsBox label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #666;
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        #tourBikeSelect {
+            width: 100%;
+        }
+
+        #btnGpxDownload {
+            display: block;
+            text-align: center;
+            padding: 8px 12px;
+            background: #4B77BE;
+            color: #fff;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: background-color 0.2s;
+        }
+
+        #btnGpxDownload:hover {
+            background: #3a5f9e;
+        }
+
+        .detail-card {
+            background: #fff;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            margin-bottom: 5px;
+        }
+
+        .detail-card h2 {
+            margin: 0 0 15px 0;
         }
 
         #map {
-            height: 620px;
-            min-height: 620px;
-            width: calc(100% - 20px);
-            margin-left: 10px;
-            margin-right: 10px;
+            height: 560px;
+            border-radius: 8px;
         }
 
         #elevationChart {
-            width: calc(100% - 20px);
-            margin-left: 10px;
-            margin-right: 10px;
-            height: 180px;
-            margin-top: 12px;
+            height: 200px;
         }
 
         #elevationChart canvas {
             width: 100% !important;
             height: 100% !important;
         }
-
-        .tour-metrics-line {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 14px;
-            align-items: center;
-            background: #fff;
-            padding: 10px 18px;
-            border-radius: 10px;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.06);
-            margin-bottom: 12px;
-            border-left: 4px solid #4B77BE;
-        }
-
-        .metric-item {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .metric-label {
-            font-size: 13px;
-            color: #666;
-            font-weight: 500;
-        }
-
-        .metric-value {
-            font-size: 15px;
-            color: #1C3F75;
-            font-weight: 600;
-        }
-
-        .bike-select {
-            min-width: 180px;
-            padding: 6px 10px;
-            border-radius: 6px;
-            border: 1px solid #c0d3e9;
-            background-color: #f9fbfd;
-            color: #1C3F75;
-            font-size: 14px;
-            outline: none;
-        }
     </style>
 </head>
 <body>
 
-    <div style="margin-bottom: 15px;">
-        <a href="{{ url_for('pages.index') }}" class="btn-secondary" style="text-decoration: none; font-size: 14px;">← Zurück zum Dashboard</a>
-    </div>
+<div id="MainMenuDashboard">
+    <button id="btnDashboard" onclick="window.location.href='{{ url_for('pages.index') }}'">Dashboard</button>
+    <button id="btnBikeTracker" onclick="window.location.href='{{ url_for('biketracker.biketracker') }}'">BikeTracker</button>
+    <button id="btnEditGoals" onclick="window.location.href='{{ url_for('pages.mygoals') }}'">Ziele</button>
+    <button id="btnMyBikes" onclick="window.location.href='{{ url_for('pages.mybikes') }}'">Bikes</button>
+    <button id="btnSettings" onclick="window.location.href='{{ url_for('pages.appsettings') }}'">Settings</button>
+    <button id="btnKmStat" onclick="window.location.href='{{ url_for('pages.kmyear') }}'">km-Stat</button>
+</div>
 
-    <div class="tour-metrics-line">
-        <div class="metric-item">
-            <span class="metric-label">Name:</span>
-            <span
-                id="tourNameValue"
-                class="metric-value"
-                title="Doppelklick zum Bearbeiten"
-                data-tour-id="{{ tour.id }}"
-                tabindex="0"
-            >{{ tour.name }}</span>
+<div id="pageContent">
+
+    <h1 class="title tour-title">
+        <span
+            id="tourNameValue"
+            title="Doppelklick zum Bearbeiten"
+            data-tour-id="{{ tour.id }}"
+            tabindex="0"
+        >{{ tour.name }}</span>
+        <span class="tour-title-hint">Doppelklick zum Umbenennen</span>
+    </h1>
+
+    <div id="tourTopRow">
+        <div id="tourStatsBox">
+            <div class="goalFrame">
+                <div class="goalFrameTitle">Datum</div>
+                <div class="goalFrameValue">{{ tour.date_display }}</div>
+            </div>
+            <div class="goalFrame">
+                <div class="goalFrameTitle">Dauer</div>
+                <div class="goalFrameValue">{{ tour.duration_hm }} h</div>
+            </div>
+            <div class="goalFrame">
+                <div class="goalFrameTitle">Distanz</div>
+                <div class="goalFrameValue">{{ (tour.distance_km | float) | round(0, 'common') | int }} km</div>
+            </div>
+            <div class="goalFrame">
+                <div class="goalFrameTitle">Aufstieg</div>
+                <div class="goalFrameValue">{{ (tour.total_ascent_m | float) | round(0, 'common') | int }} hm</div>
+            </div>
         </div>
-        <div class="metric-item" style="margin-left: 10px; padding-left: 14px; border-left: 1px solid #eee;">
-            <span class="metric-label">Datum:</span>
-            <span class="metric-value">{{ tour.date_display }}</span>
-        </div>
-        <div class="metric-item" style="margin-left: 10px; padding-left: 14px; border-left: 1px solid #eee;">
-            <span class="metric-label">Dauer:</span>
-            <span class="metric-value">{{ tour.duration_hm }} h</span>
-        </div>
-        <div class="metric-item" style="margin-left: 10px; padding-left: 14px; border-left: 1px solid #eee;">
-            <span class="metric-label">Distanz:</span>
-            <span class="metric-value">{{ (tour.distance_km | float) | round(0, 'common') | int }} km</span>
-        </div>
-        <div class="metric-item" style="margin-left: 10px; padding-left: 14px; border-left: 1px solid #eee;">
-            <span class="metric-label">Aufstieg:</span>
-            <span class="metric-value">{{ (tour.total_ascent_m | float) | round(0, 'common') | int }} hm</span>
-        </div>
-        <div class="metric-item" style="margin-left: 10px; padding-left: 14px; border-left: 1px solid #eee;">
-            <span class="metric-label">Bike:</span>
-            <select
-                id="tourBikeSelect"
-                class="bike-select"
-                data-tour-id="{{ tour.id }}"
-            >
-                <option value="" {% if not selected_bike_id %}selected{% endif %}>no Bike</option>
-                {% for bike in bikes %}
-                    <option value="{{ bike.id }}" {% if selected_bike_id == bike.id %}selected{% endif %}>{{ bike.name }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        <div class="metric-item" style="margin-left: auto;">
-            <a
-                id="btnGpxDownload"
-                href="/api/tours/{{ tour.id }}/gpx"
-                download
-                style="
-                    display: inline-block;
-                    padding: 6px 14px;
-                    background: #1f4e8c;
-                    color: #fff;
-                    border-radius: 6px;
-                    font-size: 13px;
-                    font-weight: 600;
-                    text-decoration: none;
-                    white-space: nowrap;
-                "
-            >⬇ GPX Download</a>
+
+        <div id="tourActionsBox">
+            <div>
+                <label for="tourBikeSelect">Bike</label>
+                <select id="tourBikeSelect" data-tour-id="{{ tour.id }}">
+                    <option value="" {% if not selected_bike_id %}selected{% endif %}>no Bike</option>
+                    {% for bike in bikes %}
+                        <option value="{{ bike.id }}" {% if selected_bike_id == bike.id %}selected{% endif %}>{{ bike.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <a id="btnGpxDownload" href="/api/tours/{{ tour.id }}/gpx" download>⬇ GPX Download</a>
         </div>
     </div>
 
-    <div id="mainLayout">
+    <div class="detail-card">
+        <h2>Karte</h2>
         <div id="map"></div>
+    </div>
+
+    <div class="detail-card">
+        <h2>Höhenprofil</h2>
         <div id="elevationChart">
             <canvas id="myChart"></canvas>
         </div>
     </div>
+
+</div>
 
     <script>
     window.onload = function() {
