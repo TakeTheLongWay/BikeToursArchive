@@ -1,0 +1,13 @@
+Fahrradname,Fahrradmarke,Fahrradmodell,Fahrrad-Standardsportarten
+Boulder,Scott,1992,""
+Brompton,,,""
+CUBE Stereo Hybrid 160 HPC,CUBE,Stereo Hybrid 160,""
+Darottami,,,""
+Grizl:ONfly,Canyon,Grizl:ONFly CF Daily,Schotterfahrt
+Hercules,Herkules,Touring ,""
+Kalkhoff Endeavour,Kalkhoff,Endeavour,Handbike|E-Bike-Radfahrt|Virtuelle Radfahrt|Velomobil|Mountainbike-Fahrt|E-Mountainbike-Fahrt|Radfahren
+Liteville 301 MK12,Liteville,301 MK12,""
+Meistertsück Heidel,,,""
+Stomark Hexxenhammer,Stomark,Hexxenhammer,""
+Surly Disc Trucker,Surly,Haul Disk Trucker,""
+Tundra Hardtail,Steppenwolf,Tundra,""
