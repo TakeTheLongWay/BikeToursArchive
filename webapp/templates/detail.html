@@ -25,10 +25,21 @@
             outline: none;
         }
 
-        #tourNameValue[contenteditable="true"] {
+        /* Combobox zum Umbenennen: freie Eingabe oder Auswahl aus tour_names */
+        #tourNameInput {
+            font: inherit;
+            color: inherit;
+            width: min(28em, 100%);
+            padding: 0 8px;
+            border: none;
+            border-radius: 6px;
             background: #fff;
             box-shadow: 0 0 0 2px #4B77BE;
-            padding: 0 6px;
+            outline: none;
+        }
+
+        #tourNameInput::placeholder {
+            color: #aab5cc;
         }
 
         .tour-title-hint {
@@ -158,7 +169,17 @@
             data-tour-id="{{ tour.id }}"
             tabindex="0"
         >{{ tour.name }}</span>
-        <span class="tour-title-hint">Doppelklick zum Umbenennen</span>
+        <input
+            id="tourNameInput"
+            type="text"
+            list="tourNameList"
+            maxlength="255"
+            autocomplete="off"
+            aria-label="Tourname"
+            hidden
+        >
+        <datalist id="tourNameList"></datalist>
+        <span id="tourNameHint" class="tour-title-hint">Doppelklick zum Umbenennen</span>
     </h1>
 
     <div id="tourTopRow">
@@ -323,29 +344,87 @@
             return;
         }
 
+        const tourNameInput = document.getElementById("tourNameInput");
+        const tourNameList = document.getElementById("tourNameList");
+        const tourNameHint = document.getElementById("tourNameHint");
+
         let originalName = tourNameEl.textContent.trim();
         let isEditing = false;
         let isSaving = false;
+        let tourNames = null;
 
-        function placeCaretAtEnd(el) {
-            const range = document.createRange();
-            const selection = window.getSelection();
-            range.selectNodeContents(el);
-            range.collapse(false);
-            selection.removeAllRanges();
-            selection.addRange(range);
+        async function loadTourNames() {
+            if (tourNames !== null) {
+                return;
+            }
+
+            try {
+                const response = await fetch("/api/tour-names");
+                if (!response.ok) {
+                    throw new Error(response.status);
+                }
+                tourNames = await response.json();
+            } catch (error) {
+                console.error("Tournamen konnten nicht geladen werden:", error);
+                tourNames = [];
+            }
+
+            renderTourNameOptions();
         }
 
-        function startEditing() {
+        function renderTourNameOptions() {
+            tourNameList.innerHTML = "";
+            tourNames.forEach((name) => {
+                const option = document.createElement("option");
+                option.value = name;
+                tourNameList.appendChild(option);
+            });
+        }
+
+        function rememberTourName(name) {
+            if (tourNames === null) {
+                return;
+            }
+            const exists = tourNames.some((n) => n.toLowerCase() === name.toLowerCase());
+            if (!exists) {
+                tourNames.push(name);
+                tourNames.sort((a, b) => a.localeCompare(b, "de"));
+                renderTourNameOptions();
+            }
+        }
+
+        function closeEditor() {
+            tourNameInput.hidden = true;
+            tourNameEl.hidden = false;
+            tourNameHint.textContent = "Doppelklick zum Umbenennen";
+            isEditing = false;
+        }
+
+        async function startEditing() {
             if (isEditing || isSaving) {
                 return;
             }
 
             isEditing = true;
             originalName = tourNameEl.textContent.trim();
-            tourNameEl.contentEditable = "true";
-            tourNameEl.focus();
-            placeCaretAtEnd(tourNameEl);
+
+            // Leeres Feld, damit die Combobox alle Tournamen anzeigt
+            tourNameInput.value = "";
+            tourNameInput.placeholder = originalName;
+            tourNameEl.hidden = true;
+            tourNameInput.hidden = false;
+            tourNameHint.textContent = "Namen auswählen oder neu eingeben · Enter speichert · Esc bricht ab";
+            tourNameInput.focus();
+
+            await loadTourNames();
+
+            if (isEditing && typeof tourNameInput.showPicker === "function") {
+                try {
+                    tourNameInput.showPicker();
+                } catch (error) {
+                    // showPicker ist nicht in jedem Browser für Datalists erlaubt
+                }
+            }
         }
 
         async function saveName() {
@@ -353,18 +432,10 @@
                 return;
             }
 
-            const newName = tourNameEl.textContent.trim();
+            const newName = tourNameInput.value.trim();
 
-            if (!newName) {
-                tourNameEl.textContent = originalName;
-                tourNameEl.contentEditable = "false";
-                isEditing = false;
-                return;
-            }
-
-            if (newName === originalName) {
-                tourNameEl.contentEditable = "false";
-                isEditing = false;
+            if (!newName || newName === originalName) {
+                closeEditor();
                 return;
             }
 
@@ -387,6 +458,7 @@
 
                 originalName = result.name;
                 tourNameEl.textContent = result.name;
+                rememberTourName(result.name);
 
                 localStorage.setItem("tour_name_updated", JSON.stringify({
                     tourId: Number(result.tour_id),
@@ -397,9 +469,8 @@
                 alert(error.message || "Der Tourname konnte nicht gespeichert werden.");
                 tourNameEl.textContent = originalName;
             } finally {
-                tourNameEl.contentEditable = "false";
-                isEditing = false;
                 isSaving = false;
+                closeEditor();
             }
         }
 
@@ -408,9 +479,7 @@
                 return;
             }
 
-            tourNameEl.textContent = originalName;
-            tourNameEl.contentEditable = "false";
-            isEditing = false;
+            closeEditor();
         }
 
         tourNameEl.addEventListener("dblclick", (event) => {
@@ -418,7 +487,14 @@
             startEditing();
         });
 
-        tourNameEl.addEventListener("keydown", async (event) => {
+        // Auswahl aus der Liste speichert sofort; getippter Text erst mit Enter oder beim Verlassen
+        tourNameInput.addEventListener("input", async (event) => {
+            if (event.inputType === "insertReplacementText" || event.inputType === undefined) {
+                await saveName();
+            }
+        });
+
+        tourNameInput.addEventListener("keydown", async (event) => {
             if (!isEditing) {
                 return;
             }
@@ -426,15 +502,13 @@
             if (event.key === "Enter") {
                 event.preventDefault();
                 await saveName();
-                tourNameEl.blur();
             } else if (event.key === "Escape") {
                 event.preventDefault();
                 cancelEditing();
-                tourNameEl.blur();
             }
         });
 
-        tourNameEl.addEventListener("blur", async () => {
+        tourNameInput.addEventListener("blur", async () => {
             await saveName();
         });
     };

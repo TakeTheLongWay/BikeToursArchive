@@ -82,6 +82,13 @@ def api_tours(cursor):
         return jsonify({"error": str(exc)}), 500
 
 
+@tours_bp.route("/api/tour-names", methods=["GET"])
+@mysql_connection_wrapper
+def api_tour_names(cursor):
+    cursor.execute("SELECT name FROM tour_names ORDER BY name ASC")
+    return jsonify([row["name"] for row in cursor.fetchall()])
+
+
 @tours_bp.route("/api/tours/<int:tour_id>/name", methods=["PUT"])
 @mysql_connection_wrapper
 def api_update_tour_name(cursor, tour_id):
@@ -105,7 +112,11 @@ def api_update_tour_name(cursor, tour_id):
             (new_name, tour_id),
         )
 
-        return jsonify({"status": "ok", "tour_id": tour_id, "name": new_name})
+        # Neue Namen in die Auswahlliste aufnehmen; vorhandene bleiben unverändert
+        cursor.execute("INSERT IGNORE INTO tour_names (name) VALUES (%s)", (new_name,))
+        name_added = cursor.rowcount == 1
+
+        return jsonify({"status": "ok", "tour_id": tour_id, "name": new_name, "name_added": name_added})
     except Exception as exc:
         current_app.logger.error("FEHLER beim Umbenennen der Tour %s: %s", tour_id, exc)
         return jsonify({"status": "error", "message": str(exc)}), 500
