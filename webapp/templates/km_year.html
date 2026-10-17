@@ -6,17 +6,53 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 
     <style>
-        .page-header {
+        /* ── Kopfzeile wie Dashboard: Legende links, Filter rechts ── */
+        #kmTopRow {
             display: flex;
-            align-items: center;
-            gap: 16px;
-            margin-bottom: 1.4em;
+            gap: 5px;
+            margin-bottom: 5px;
+            flex-wrap: wrap;
         }
 
-        .page-header label {
-            font-size: 12px;
-            font-weight: 600;
-            color: #666;
+        #kmLegendBox {
+            flex: 1 1 auto;
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            background: #fff;
+            padding: 18px 22px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+
+        .kmLegendLabel {
+            min-width: 150px;
+            font-size: 16px;
+            font-weight: 700;
+            color: #1C3F75;
+        }
+
+        #kmTopRow #filterControls {
+            justify-content: flex-start;
+        }
+
+        #kmTopRow #filterControls select {
+            width: 100%;
+        }
+
+        #kmTopRow #filterControls > div {
+            flex: 1;
+        }
+
+        .km-card {
+            background: #fff;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+
+        .km-card h2 {
+            margin: 0 0 20px 0;
         }
 
         /* ── Chart-Block ── */
@@ -27,7 +63,7 @@
         .year-label {
             font-size: 0.85em;
             font-weight: 600;
-            color: #1f4e8c;
+            color: #1C3F75;
             letter-spacing: 0.04em;
             margin-bottom: 6px;
             padding-left: 4px;
@@ -58,7 +94,7 @@
         }
 
         .bar-fill.current {
-            background: #1f4e8c;
+            background: #1C3F75;
         }
 
         .bar-fill.prev {
@@ -127,10 +163,10 @@
         .legend {
             display: flex;
             gap: 20px;
-            margin-bottom: 20px;
             align-items: center;
-            font-size: 0.85em;
+            font-size: 14px;
             color: #555;
+            flex-wrap: wrap;
         }
 
         .legend-item {
@@ -159,7 +195,7 @@
         }
 
         .year-total strong {
-            color: #1f4e8c;
+            color: #1C3F75;
             font-size: 1.1em;
         }
 
@@ -183,29 +219,40 @@
 
 <div id="pageContent">
 
-    <div class="page-header">
-        <h1 class="title">km/Jahr – Monatsvergleich</h1>
-        <label for="yearSelect">Jahr</label>
-        <select id="yearSelect"></select>
+    <h1 class="title">km-Stat</h1>
+
+    <div id="kmTopRow">
+        <div id="kmLegendBox">
+            <div class="kmLegendLabel">Monatsvergleich</div>
+            <div class="legend">
+                <div class="legend-item">
+                    <div class="legend-dot" style="background:#1C3F75;"></div>
+                    <span id="legendCurrent">Aktuelles Jahr</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot" style="background:#7fa8d4;"></div>
+                    <span id="legendPrev">Vorjahr</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot" style="background:#dde8f4;"></div>
+                    <span>Noch ausstehend</span>
+                </div>
+            </div>
+        </div>
+
+        <div id="filterControls">
+            <div>
+                <label for="yearSelect">Jahr</label>
+                <select id="yearSelect"></select>
+            </div>
+        </div>
     </div>
 
-    <div class="legend">
-        <div class="legend-item">
-            <div class="legend-dot" style="background:#1f4e8c;"></div>
-            <span id="legendCurrent">Aktuelles Jahr</span>
+    <div class="km-card">
+        <h2>km pro Monat</h2>
+        <div id="chartContainer">
+            <div class="loading">Lade Daten…</div>
         </div>
-        <div class="legend-item">
-            <div class="legend-dot" style="background:#7fa8d4;"></div>
-            <span id="legendPrev">Vorjahr</span>
-        </div>
-        <div class="legend-item">
-            <div class="legend-dot" style="background:#dde8f4;"></div>
-            <span>Noch ausstehend</span>
-        </div>
-    </div>
-
-    <div id="chartContainer">
-        <div class="loading">Lade Daten…</div>
     </div>
 
 </div>
