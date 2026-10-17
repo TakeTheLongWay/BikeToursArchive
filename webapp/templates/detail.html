@@ -55,9 +55,14 @@
 
         #tourStatsBox .goalFrame {
             max-width: none;
+            padding: 10px;
             display: flex;
             flex-direction: column;
             justify-content: center;
+        }
+
+        #tourStatsBox .goalFrameTitle {
+            margin-bottom: 2px;
         }
 
         #tourStatsBox .goalFrameValue {
@@ -68,11 +73,10 @@
             flex: 0 0 var(--dashboard-side-width);
             box-sizing: border-box;
             display: flex;
-            flex-direction: column;
-            justify-content: center;
+            align-items: center;
             gap: 10px;
             background: #fff;
-            padding: 15px;
+            padding: 10px 15px;
             border-radius: 12px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.05);
         }
@@ -81,16 +85,17 @@
             font-size: 12px;
             font-weight: 600;
             color: #666;
-            display: block;
-            margin-bottom: 4px;
         }
 
         #tourBikeSelect {
-            width: 100%;
+            flex: 1 1 auto;
+            min-width: 0;
         }
 
         #btnGpxDownload {
             display: block;
+            flex: 0 0 auto;
+            white-space: nowrap;
             text-align: center;
             padding: 8px 12px;
             background: #4B77BE;
@@ -159,34 +164,32 @@
     <div id="tourTopRow">
         <div id="tourStatsBox">
             <div class="goalFrame">
-                <div class="goalFrameTitle">Datum</div>
-                <div class="goalFrameValue">{{ tour.date_display }}</div>
+                <div class="goalFrameTitle">Distanz</div>
+                <div class="goalFrameValue">{{ (tour.distance_km | float) | round(0, 'common') | int }} km</div>
             </div>
             <div class="goalFrame">
                 <div class="goalFrameTitle">Dauer</div>
                 <div class="goalFrameValue">{{ tour.duration_hm }} h</div>
             </div>
             <div class="goalFrame">
-                <div class="goalFrameTitle">Distanz</div>
-                <div class="goalFrameValue">{{ (tour.distance_km | float) | round(0, 'common') | int }} km</div>
-            </div>
-            <div class="goalFrame">
                 <div class="goalFrameTitle">Aufstieg</div>
                 <div class="goalFrameValue">{{ (tour.total_ascent_m | float) | round(0, 'common') | int }} hm</div>
+            </div>
+            <div class="goalFrame">
+                <div class="goalFrameTitle">Datum</div>
+                <div class="goalFrameValue">{{ tour.date_display }}</div>
             </div>
         </div>
 
         <div id="tourActionsBox">
-            <div>
-                <label for="tourBikeSelect">Bike</label>
-                <select id="tourBikeSelect" data-tour-id="{{ tour.id }}">
-                    <option value="" {% if not selected_bike_id %}selected{% endif %}>no Bike</option>
-                    {% for bike in bikes %}
-                        <option value="{{ bike.id }}" {% if selected_bike_id == bike.id %}selected{% endif %}>{{ bike.name }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <a id="btnGpxDownload" href="/api/tours/{{ tour.id }}/gpx" download>⬇ GPX Download</a>
+            <label for="tourBikeSelect">Bike</label>
+            <select id="tourBikeSelect" data-tour-id="{{ tour.id }}">
+                <option value="" {% if not selected_bike_id %}selected{% endif %}>no Bike</option>
+                {% for bike in bikes %}
+                    <option value="{{ bike.id }}" {% if selected_bike_id == bike.id %}selected{% endif %}>{{ bike.name }}</option>
+                {% endfor %}
+            </select>
+            <a id="btnGpxDownload" href="/api/tours/{{ tour.id }}/gpx" download title="GPX herunterladen">⬇ GPX</a>
         </div>
     </div>
 
