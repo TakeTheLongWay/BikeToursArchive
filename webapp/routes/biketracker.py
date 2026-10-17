@@ -4,7 +4,7 @@ import uuid
 from flask import Blueprint, current_app, jsonify, render_template, request
 
 from ..services.biketracker_source import BikeTrackerSourceError, get_source
-from ..services.importer import process_gpx_file
+from ..services.importer import DuplicateActivityError, process_gpx_file
 
 biketracker_bp = Blueprint("biketracker", __name__)
 
@@ -34,6 +34,7 @@ def biketracker_import():
     source = get_source()
     upload_tmp_dir = current_app.config["UPLOAD_TMP_DIR"]
     imported_ids = []
+    duplicates = []
     errors = []
 
     for file_id in file_ids:
@@ -44,6 +45,9 @@ def biketracker_import():
             filename = source.download(file_id, tmp_path)
             activity_id = process_gpx_file(tmp_path)
             imported_ids.append(activity_id)
+        except DuplicateActivityError as exc:
+            duplicates.append({"filename": filename, "activity_id": exc.activity_id, "activity_name": exc.activity_name})
+            os.remove(tmp_path)
         except Exception as exc:
             current_app.logger.error("Fehler beim BikeTracker-Import von %s: %s", filename, exc)
             errors.append({"filename": filename, "error": str(exc)})
@@ -55,6 +59,7 @@ def biketracker_import():
             "ok": True,
             "imported_count": len(imported_ids),
             "imported_ids": imported_ids,
+            "duplicates": duplicates,
             "errors": errors,
         }
     )

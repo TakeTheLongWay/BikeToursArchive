@@ -587,8 +587,18 @@ async function uploadGpxFiles(files) {
             return;
         }
 
-        if (result.errors && result.errors.length > 0) {
-            alert(`Import abgeschlossen (${result.imported_count}).\nEinige Dateien konnten nicht importiert werden.`);
+        const duplicates = result.duplicates || [];
+        const errors = result.errors || [];
+        if (duplicates.length > 0 || errors.length > 0) {
+            let msg = `Import abgeschlossen (${result.imported_count}).`;
+            if (duplicates.length > 0) {
+                msg += "\n\nBereits vorhanden (übersprungen):\n"
+                    + duplicates.map(d => `${d.filename} → ${d.activity_name}`).join("\n");
+            }
+            if (errors.length > 0) {
+                msg += "\nEinige Dateien konnten nicht importiert werden.";
+            }
+            alert(msg);
         }
 
         await loadData();
