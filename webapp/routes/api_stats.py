@@ -69,7 +69,8 @@ def api_stats(cursor):
         row_year = cursor.fetchone()
 
         sql_week = (
-            "SELECT COALESCE(SUM(distance_km),0) AS km, COUNT(*) AS cnt "
+            "SELECT COALESCE(SUM(distance_km),0) AS km, COUNT(*) AS cnt, "
+            "COALESCE(SUM(elapsed_time_s),0) AS elapsed_s "
             "FROM activities WHERE activity_date >= %s"
         )
         params_week = [start_of_week]
@@ -95,6 +96,7 @@ def api_stats(cursor):
                 "year_count": row_year["cnt"],
                 "week_km": float(row_week["km"]),
                 "week_count": row_week["cnt"],
+                "week_elapsed_time_s": int(row_week["elapsed_s"]),
                 "all_rides_km": float(row_all_rides["km"]),
                 "all_rides_count": row_all_rides["cnt"],
             }

@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
     <meta charset="utf-8">
-    <title>MyBikeLog Dashboard</title>
+    <title>Stollenknacken.de MyBikeLog</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <script defer src="{{ url_for('static', filename='dashboard.js') }}"></script>
 
@@ -88,11 +88,12 @@
     <button id="btnImport">Import</button>
     <button id="btnEditGoals" onclick="window.location.href='{{ url_for('pages.mygoals') }}'">Ziele</button>
     <button id="btnMyBikes" onclick="window.location.href='{{ url_for('pages.mybikes') }}'">Bikes</button>
-    <button id="btnSettings" onclick="window.location.href='{{ url_for('pages.appsettings') }}'">Settings</button>
-    <button id="btnKmYear" onclick="window.location.href='{{ url_for('pages.kmyear') }}'">km/Jahr</button>
+    <button id="btnSettings">Settings</button>
 </div>
 
 <div id="pageContent">
+
+    <h1 class="title">MyBikeLog Dashboard</h1>
 
     <div id="filterBox">
 
@@ -133,9 +134,15 @@
                 <div class="goalFrameValue">
                     <span id="goalDayKm">0,0</span> km
                 </div>
-                <div class="goalFrameRest">
-                    <span id="goalDayDate"></span>
+                <div class="goalFrameRest">&nbsp;</div>
+            </div>
+
+            <div class="goalFrame">
+                <div class="goalFrameTitle">Woche Zeit</div>
+                <div class="goalFrameValue">
+                    <span id="goalWeekTime">00:00</span>
                 </div>
+                <div class="goalFrameRest"><span id="goalWeekTimeMin">0</span> min</div>
             </div>
 
         </div>
@@ -214,7 +221,28 @@
 
             <div id="bikesOverviewBox">
                 <h3>Räder</h3>
-                <div class="bikesOverviewList" id="bikesOverviewList"></div>
+
+                <div class="bikesOverviewList">
+                    <div class="bikesOverviewRow">
+                        <span class="bikesOverviewName">CUBE Stereo Hybrid 160 H...</span>
+                        <span class="bikesOverviewKm" id="bikeOverviewKmCube">0,0 km</span>
+                    </div>
+
+                    <div class="bikesOverviewRow">
+                        <span class="bikesOverviewName">Grizl:ONfly</span>
+                        <span class="bikesOverviewKm" id="bikeOverviewKmGrizl">0,0 km</span>
+                    </div>
+
+                    <div class="bikesOverviewRow">
+                        <span class="bikesOverviewName">Kalkhoff Endeavour</span>
+                        <span class="bikesOverviewKm" id="bikeOverviewKmEndeavour">0,0 km</span>
+                    </div>
+
+                    <div class="bikesOverviewRow">
+                        <span class="bikesOverviewName">Meisterstück Heidel</span>
+                        <span class="bikesOverviewKm" id="bikeOverviewKmHeidel">0,0 km</span>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

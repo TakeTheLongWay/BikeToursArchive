@@ -263,6 +263,13 @@ function formatKmTwoDecimals(value) {
     });
 }
 
+function formatSecondsHHMM(totalSeconds) {
+    const s = Math.max(0, Math.round(num(totalSeconds, 0)));
+    const hours = Math.floor(s / 3600);
+    const minutes = Math.floor((s % 3600) / 60);
+    return String(hours).padStart(2, "0") + ":" + String(minutes).padStart(2, "0");
+}
+
 function calculateExpectedYearKm(goalYear, year) {
     const totalGoal = num(goalYear, 0);
     const totalDays = getDaysInYear(year);
@@ -522,6 +529,15 @@ async function loadData() {
                 const weekDailyKm = dailyKmNeeded(goalWeek, doneWeek, remainingWeekDays);
                 goalWeekPerDayEl.textContent = formatDailyKm(weekDailyKm);
             }
+        }
+
+        const goalWeekTimeEl = document.getElementById("goalWeekTime");
+        const goalWeekTimeMinEl = document.getElementById("goalWeekTimeMin");
+        if (goalWeekTimeEl) {
+            goalWeekTimeEl.textContent = formatSecondsHHMM(stats.week_elapsed_time_s);
+        }
+        if (goalWeekTimeMinEl) {
+            goalWeekTimeMinEl.textContent = Math.floor(num(stats.week_elapsed_time_s, 0) / 60);
         }
 
         document.getElementById("statsAllRidesKm").textContent = num(stats.all_rides_km, 0).toFixed(1);
