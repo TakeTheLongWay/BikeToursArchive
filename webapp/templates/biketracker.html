@@ -6,41 +6,41 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 
     <style>
-        #trackerHeader {
+        .tracker-card {
+            background: #fff;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            margin-top: 5px;
+        }
+
+        .tracker-card-header {
             display: flex;
             align-items: baseline;
             gap: 1em;
-            margin-bottom: 1.2em;
+            flex-wrap: wrap;
         }
 
-        #trackerHeader h2 {
+        .tracker-card-header h2 {
             margin: 0;
         }
 
-        #trackerTable {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        #trackerTable thead th {
-            text-align: left;
-            padding: 0.5em 0.7em;
-            border-bottom: 2px solid #1f4e8c;
-            color: #1f4e8c;
+        .tracker-source {
+            font-size: 13px;
+            color: #888;
         }
 
         #trackerTable tbody tr:hover {
-            background: #f0f5ff;
+            background: #f4f7fc;
         }
 
-        #trackerTable tbody td {
-            padding: 0.5em 0.7em;
-            border-bottom: 1px solid #dde3ef;
-            vertical-align: middle;
+        #trackerTable th:first-child,
+        #trackerTable td:first-child {
+            width: 2.5em;
         }
 
-        #trackerTable tbody td:last-child,
-        #trackerTable thead th:last-child {
+        #trackerTable th:last-child,
+        #trackerTable td:last-child {
             text-align: right;
         }
 
@@ -51,11 +51,25 @@
         }
 
         #trackerActionBar {
-            margin-top: 1.2em;
+            margin-top: 25px;
             display: flex;
-            gap: 1em;
+            gap: 10px;
             align-items: center;
             justify-content: flex-end;
+        }
+
+        #importHint {
+            font-size: 13px;
+            color: #888;
+        }
+
+        #btnTrackerImport {
+            background: #2eaf4a;
+            min-width: 120px;
+        }
+
+        #btnTrackerImport:hover {
+            background: #25913d;
         }
 
         #btnTrackerImport:disabled {
@@ -63,66 +77,90 @@
             cursor: not-allowed;
         }
 
+        #btnTrackerCancel {
+            background: #666;
+            min-width: 120px;
+        }
+
+        #btnTrackerCancel:hover {
+            background: #555;
+        }
+
         .tracker-error {
-            color: #c0392b;
             background: #fdecea;
-            border-radius: 8px;
-            padding: 0.8em 1.2em;
-            margin-top: 1em;
+            color: #c0392b;
+            border-radius: 12px;
+            padding: 12px;
+            margin-top: 20px;
+            font-size: 14px;
+        }
+
+        .empty-state {
+            font-size: 14px;
+            color: #999;
+            margin-top: 20px;
         }
     </style>
 </head>
 <body>
 
 <div id="MainMenuDashboard">
-    <button onclick="window.location.href='{{ url_for('pages.index') }}'">← Dashboard</button>
+    <button id="btnDashboard" onclick="window.location.href='{{ url_for('pages.index') }}'">Dashboard</button>
+    <button id="btnBikeTracker" onclick="window.location.href='{{ url_for('biketracker.biketracker') }}'">BikeTracker</button>
+    <button id="btnEditGoals" onclick="window.location.href='{{ url_for('pages.mygoals') }}'">Ziele</button>
+    <button id="btnMyBikes" onclick="window.location.href='{{ url_for('pages.mybikes') }}'">Bikes</button>
+    <button id="btnSettings" onclick="window.location.href='{{ url_for('pages.appsettings') }}'">Settings</button>
 </div>
 
 <div id="pageContent">
 
-    <div id="trackerHeader">
-        <h2>BikeTracker</h2>
-        <span style="color:#888; font-size:0.92em;">{{ source_dir }} – neueste {{ config['BIKETRACKER_MAX_FILES'] }} Dateien</span>
-    </div>
+    <h1 class="title">BikeTracker</h1>
 
-    {% if error %}
-        <div class="tracker-error">⚠️ {{ error }}</div>
-    {% elif files %}
-        <table id="trackerTable">
-            <thead>
-                <tr>
-                    <th style="width:2.5em;"><input type="checkbox" id="checkAll" class="tracker-checkbox" aria-label="Alle auswählen"></th>
-                    <th>Datei</th>
-                    <th>Geändert</th>
-                    <th>Größe</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for f in files %}
-                <tr>
-                    <td>
-                        <input
-                            type="checkbox"
-                            class="tracker-checkbox file-check"
-                            value="{{ f.name }}"
-                            aria-label="{{ f.name }} auswählen"
-                        >
-                    </td>
-                    <td>{{ f.name }}</td>
-                    <td>{{ f.date }}</td>
-                    <td>{{ "%.1f"|format(f.size_kb) }} KB</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    {% else %}
-        <p style="color:#888;">Keine GPX-Dateien gefunden.</p>
-    {% endif %}
+    <div class="tracker-card">
+        <div class="tracker-card-header">
+            <h2>GPX-Dateien</h2>
+            <span class="tracker-source">{{ source_dir }} – neueste {{ config['BIKETRACKER_MAX_FILES'] }} Dateien</span>
+        </div>
 
-    <div id="trackerActionBar">
-        <span id="importHint" style="color:#888; font-size:0.9em;"></span>
-        <button id="btnTrackerImport" disabled>Importieren</button>
-        <button id="btnTrackerCancel">Abbrechen</button>
+        {% if error %}
+            <div class="tracker-error">⚠️ {{ error }}</div>
+        {% elif files %}
+            <table id="trackerTable">
+                <thead>
+                    <tr>
+                        <th><input type="checkbox" id="checkAll" class="tracker-checkbox" aria-label="Alle auswählen"></th>
+                        <th>Datei</th>
+                        <th>Geändert</th>
+                        <th>Größe</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for f in files %}
+                    <tr>
+                        <td>
+                            <input
+                                type="checkbox"
+                                class="tracker-checkbox file-check"
+                                value="{{ f.name }}"
+                                aria-label="{{ f.name }} auswählen"
+                            >
+                        </td>
+                        <td>{{ f.name }}</td>
+                        <td>{{ f.date }}</td>
+                        <td>{{ "%.1f"|format(f.size_kb) }} KB</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <div class="empty-state">Keine GPX-Dateien gefunden.</div>
+        {% endif %}
+
+        <div id="trackerActionBar">
+            <span id="importHint"></span>
+            <button id="btnTrackerImport" disabled>Importieren</button>
+            <button id="btnTrackerCancel">Abbrechen</button>
+        </div>
     </div>
 
 </div>

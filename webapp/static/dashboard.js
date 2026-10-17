@@ -291,42 +291,6 @@ function updateTourNameInTable(tourId, newName) {
     }
 }
 
-async function renderBikesOverview() {
-    const listEl = document.getElementById("bikesOverviewList");
-    if (!listEl) return;
-
-    try {
-        const resp = await fetch("/api/bikes");
-        const bikes = await resp.json();
-
-        listEl.innerHTML = "";
-
-        if (!Array.isArray(bikes) || bikes.length === 0) {
-            listEl.innerHTML = '<div style="font-size:13px;color:#999;">Keine aktiven Räder.</div>';
-            return;
-        }
-
-        bikes.forEach((bike) => {
-            const row = document.createElement("div");
-            row.className = "bikesOverviewRow";
-
-            const nameSpan = document.createElement("span");
-            nameSpan.className = "bikesOverviewName";
-            nameSpan.textContent = bike.name;
-
-            const kmSpan = document.createElement("span");
-            kmSpan.className = "bikesOverviewKm";
-            kmSpan.textContent = formatKmOneDecimal(bike.total_km) + " km";
-
-            row.appendChild(nameSpan);
-            row.appendChild(kmSpan);
-            listEl.appendChild(row);
-        });
-    } catch (e) {
-        console.error("Fehler beim Laden der Bikes:", e);
-    }
-}
-
 function updateYearProgress(doneYear, goalYear, year) {
     const fillEl = document.getElementById("yearProgressBarFill");
     const percentEl = document.getElementById("yearProgressPercent");
@@ -540,11 +504,7 @@ async function loadData() {
             goalWeekTimeMinEl.textContent = Math.floor(num(stats.week_elapsed_time_s, 0) / 60);
         }
 
-        document.getElementById("statsAllRidesKm").textContent = num(stats.all_rides_km, 0).toFixed(1);
-        document.getElementById("statsAllRidesCount").textContent = num(stats.all_rides_count, 0);
-
         renderTours(safeTours);
-        await renderBikesOverview();
     } catch (e) {
         console.error("Fehler beim Laden der Dashboard-Daten:", e);
     }

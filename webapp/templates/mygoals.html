@@ -6,108 +6,128 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <script defer src="{{ url_for('static', filename='goals.js') }}"></script>
     <style>
-        .goals-container {
-            max-width: 600px;
-            margin: 50px auto;
+        .goals-card {
+            max-width: 700px;
+            background: #fff;
             padding: 25px;
-            background: white;
             border-radius: 12px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            border-left: 4px solid #4B77BE;
         }
+
+        .goals-card h2 {
+            margin: 0 0 10px 0;
+        }
+
         .goal-item {
-            display: flex;
-            justify-content: space-between;
+            display: grid;
+            grid-template-columns: 1fr auto 120px;
             align-items: center;
-            padding: 15px 0;
+            gap: 16px;
+            padding: 14px 0;
             border-bottom: 1px solid #e0e6f0;
         }
+
         .goal-item:last-child {
             border-bottom: none;
         }
+
         .goal-name {
+            font-size: 14px;
             font-weight: 600;
-            color: #1C3F75;
-            width: 35%;
+            color: #666;
         }
+
         .goal-value-container {
             display: flex;
             align-items: center;
-            width: 45%;
             justify-content: flex-end;
-            gap: 10px;
         }
+
         .goal-value-display {
-            font-size: 16px;
-            color: #4B77BE;
+            font-size: 18px;
+            font-weight: 700;
+            color: #1C3F75;
         }
+
         .goal-value-input {
-            width: 110px;
-            padding: 8px;
+            width: 120px;
+            padding: 8px 12px;
             border-radius: 6px;
             border: 1px solid #c0d3e9;
+            background-color: #f9fbfd;
+            font-size: 14px;
             text-align: right;
         }
+
         .edit-button {
-            background: #4B77BE;
-            color: white;
-            border: none;
-            padding: 8px 15px;
-            border-radius: 6px;
-            cursor: pointer;
-            transition: background-color 0.2s;
-            width: 120px;
+            grid-column: 3;
+            padding: 8px 12px;
         }
-        .edit-button:hover {
-            background: #1C3F75;
-        }
+
         .goal-note {
             font-size: 12px;
             color: #777;
-            margin-top: 10px;
+            margin-top: 14px;
             line-height: 1.4;
         }
     </style>
 </head>
 <body>
-<div class="goals-container">
-    <a href="{{ url_for('pages.index') }}"> zum Dashboard</a>
 
-    <div id="goalsList">
-        <div class="goal-item" data-key="annual">
-            <span class="goal-name">Jahresleistung (km)</span>
-            <button class="edit-button" data-button>Edit</button>
-            <div class="goal-value-container">
-                <span class="goal-value-display" data-display>0.00</span>
-                <input type="number" step="0.01" class="goal-value-input" data-input style="display: none;">
-            </div>
-            
-        </div>
-
-        <div class="goal-item" data-key="monthly">
-            <span class="goal-name">Monatsleistung (km)</span>
-            <div class="goal-value-container">
-                <span class="goal-value-display" data-display>0.00</span>
-            </div>
-        </div>
-
-        <div class="goal-item" data-key="weekly">
-            <span class="goal-name">Wochenleistung (km)</span>
-            <div class="goal-value-container">
-                <span class="goal-value-display" data-display>0.00</span>
-            </div>
-        </div>
-
-        <div class="goal-item" data-key="daily">
-            <span class="goal-name">Tagesleistung (km)</span>
-            <div class="goal-value-container">
-                <span class="goal-value-display" data-display>0.00</span>
-            </div>
-        </div>
-    </div>
-
-    <div class="goal-note">
-        Hinweis: Monat/Woche/Tag werden beim Speichern der Jahresleistung automatisch neu berechnet und gespeichert.
-    </div>
+<div id="MainMenuDashboard">
+    <button id="btnDashboard" onclick="window.location.href='{{ url_for('pages.index') }}'">Dashboard</button>
+    <button id="btnBikeTracker" onclick="window.location.href='{{ url_for('biketracker.biketracker') }}'">BikeTracker</button>
+    <button id="btnEditGoals" onclick="window.location.href='{{ url_for('pages.mygoals') }}'">Ziele</button>
+    <button id="btnMyBikes" onclick="window.location.href='{{ url_for('pages.mybikes') }}'">Bikes</button>
+    <button id="btnSettings" onclick="window.location.href='{{ url_for('pages.appsettings') }}'">Settings</button>
 </div>
+
+<div id="pageContent">
+
+    <h1 class="title">Ziele</h1>
+
+    <div class="goals-card">
+        <h2>Meine Ziele</h2>
+
+        <div id="goalsList">
+            <div class="goal-item" data-key="annual">
+                <span class="goal-name">Jahresleistung (km)</span>
+                <div class="goal-value-container">
+                    <span class="goal-value-display" data-display>0.00</span>
+                    <input type="number" step="0.01" class="goal-value-input" data-input style="display: none;">
+                </div>
+                <button class="edit-button" data-button>Edit</button>
+            </div>
+
+            <div class="goal-item" data-key="monthly">
+                <span class="goal-name">Monatsleistung (km)</span>
+                <div class="goal-value-container">
+                    <span class="goal-value-display" data-display>0.00</span>
+                </div>
+            </div>
+
+            <div class="goal-item" data-key="weekly">
+                <span class="goal-name">Wochenleistung (km)</span>
+                <div class="goal-value-container">
+                    <span class="goal-value-display" data-display>0.00</span>
+                </div>
+            </div>
+
+            <div class="goal-item" data-key="daily">
+                <span class="goal-name">Tagesleistung (km)</span>
+                <div class="goal-value-container">
+                    <span class="goal-value-display" data-display>0.00</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="goal-note">
+            Hinweis: Monat/Woche/Tag werden beim Speichern der Jahresleistung automatisch neu berechnet und gespeichert.
+        </div>
+    </div>
+
+</div>
+
 </body>
 </html>

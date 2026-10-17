@@ -5,76 +5,40 @@
     <title>MyBikeLog Bikes</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <style>
-        #MainMenuDashboard {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            padding: 12px 10px;
-            background: #1C3F75;
-            align-items: stretch;
-        }
-
-        #MainMenuDashboard button {
-            color: white;
-            background: #4B77BE;
-            border: none;
-            padding: 8px 3px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 600;
-            transition: background-color 0.2s;
-            width: 100%;
-            text-align: center;
-            box-sizing: border-box;
-        }
-
-        #MainMenuDashboard button:hover {
-            background: #3a5f9e;
-        }
-
-        #btnDashboard {
-            margin-bottom: 5px;
-        }
-
-        .bikes-page {
-            max-width: 1280px;
-            margin: 50px auto;
-        }
-
         .bikes-layout {
             display: flex;
-            gap: 30px;
+            gap: 5px;
             align-items: flex-start;
+            margin-top: 5px;
         }
 
         .bikes-table-container {
             flex: 2;
-            background: white;
-            padding: 20px;
+            background: #fff;
+            padding: 25px;
             border-radius: 12px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.05);
         }
 
         .bikes-details-panel {
             flex: 1;
-            background: white;
+            max-width: 350px;
+            background: #fff;
             padding: 25px;
             border-radius: 12px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            border-left: 4px solid #4B77BE;
             position: sticky;
             top: 20px;
         }
 
-        #bikesTable {
-            width: 100%;
-            border-collapse: collapse;
+        .bikes-table-container h2,
+        .bikes-details-panel h2 {
+            margin: 0;
         }
 
-        #bikesTable th, #bikesTable td {
-            text-align: left;
-            padding: 12px;
-            border-bottom: 1px solid #eee;
+        .bikes-details-panel h2 {
+            margin-bottom: 20px;
         }
 
         #bikesTable tbody tr {
@@ -83,12 +47,21 @@
         }
 
         #bikesTable tbody tr:hover {
-            background: #f8f9fa;
+            background: #f4f7fc;
         }
 
         #bikesTable tbody tr.selected {
             background: #eef4ff;
-            border-left: 4px solid #4B77BE;
+            box-shadow: inset 4px 0 0 #4B77BE;
+        }
+
+        #bikesTable th:nth-child(n+4),
+        #bikesTable td:nth-child(n+4) {
+            white-space: nowrap;
+        }
+
+        #bikesTable td strong {
+            color: #1C3F75;
         }
 
         .detail-row {
@@ -105,9 +78,11 @@
 
         .detail-row input, .detail-row select {
             width: 100%;
-            padding: 10px;
-            border: 1px solid #ddd;
+            padding: 8px 12px;
+            border: 1px solid #c0d3e9;
             border-radius: 6px;
+            background-color: #f9fbfd;
+            font-size: 14px;
             box-sizing: border-box;
         }
 
@@ -131,22 +106,24 @@
             background: #d4edda;
             color: #155724;
             padding: 12px;
-            border-radius: 6px;
-            margin-bottom: 20px;
+            border-radius: 12px;
+            margin-top: 5px;
         }
     </style>
 </head>
 <body>
 
 <div id="MainMenuDashboard">
-    <button id="btnDashboard" onclick="window.location.href='/'">Dashboard</button>
-    <button id="btnImport">Import</button>
+    <button id="btnDashboard" onclick="window.location.href='{{ url_for('pages.index') }}'">Dashboard</button>
     <button id="btnBikeTracker" onclick="window.location.href='{{ url_for('biketracker.biketracker') }}'">BikeTracker</button>
     <button id="btnEditGoals" onclick="window.location.href='{{ url_for('pages.mygoals') }}'">Ziele</button>
     <button id="btnMyBikes" onclick="window.location.href='{{ url_for('pages.mybikes') }}'">Bikes</button>
+    <button id="btnSettings" onclick="window.location.href='{{ url_for('pages.appsettings') }}'">Settings</button>
 </div>
 
-<div class="bikes-page">
+<div id="pageContent">
+
+    <h1 class="title">Bikes</h1>
 
     {% if message %}
         <div class="msg-success">{{ message }}</div>
@@ -154,6 +131,7 @@
 
     <div class="bikes-layout">
         <div class="bikes-table-container">
+            <h2>Räder</h2>
             <table id="bikesTable">
                 <thead>
                     <tr>
@@ -188,6 +166,7 @@
         </div>
 
         <div class="bikes-details-panel">
+            <h2>Details</h2>
 
             <form id="bikeForm" method="POST">
                 <input type="hidden" name="id" id="bike-id">
