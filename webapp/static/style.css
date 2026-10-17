@@ -1,5 +1,10 @@
 /* static/style.css - Version 00.00.14 (Left Sidebar Navigation) */
 
+/* Gemeinsame Breite von Filterbox und Statistikspalte auf dem Dashboard */
+:root {
+    --dashboard-side-width: 320px;
+}
+
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     background-color: #f4f7fc;
@@ -214,7 +219,9 @@ button:hover {
     padding: 15px;
     border-radius: 12px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-    flex-shrink: 0;
+    flex: 0 0 var(--dashboard-side-width);
+    box-sizing: border-box;
+    justify-content: space-between;
 }
 
 #filterControls label {
@@ -243,7 +250,8 @@ select {
 }
 
 #leftColumn {
-    flex: 2;
+    flex: 1 1 auto;
+    min-width: 0;
     background: #fff;
     padding: 25px;
     border-radius: 12px;
@@ -251,8 +259,7 @@ select {
 }
 
 #rightColumn {
-    flex: 1;
-    max-width: 350px;
+    flex: 0 0 var(--dashboard-side-width);
     display: flex;
     flex-direction: column;
     gap: 5px;
