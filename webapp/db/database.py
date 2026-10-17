@@ -41,6 +41,41 @@ def _ensure_tour_names_table(cursor):
     print(f"Tabelle tour_names angelegt ({cursor.rowcount} Tournamen übernommen).")
 
 
+def _ensure_default_bike_trigger(cursor):
+    cursor.execute(
+        """
+        SELECT 1 FROM information_schema.triggers
+        WHERE trigger_schema = DATABASE() AND trigger_name = 'trg_activities_default_bike'
+        """
+    )
+    if cursor.fetchone():
+        return
+
+    # Standard-Bike aus bikes.standard_bike (Name oder ID) für jede neue Tour ohne Bike,
+    # unabhängig vom Importweg; siehe Create_Trigger_DefaultBike.sql
+    cursor.execute(
+        """
+        CREATE TRIGGER `trg_activities_default_bike`
+        BEFORE INSERT ON `activities`
+        FOR EACH ROW
+        BEGIN
+          IF NEW.bike_id IS NULL OR NEW.bike_id = 0 THEN
+            SET NEW.bike_id = (
+              SELECT b.id
+              FROM bikes b
+              JOIN appsettings s ON s.setting_key = 'bikes.standard_bike'
+              WHERE b.name = TRIM(s.setting_value)
+                 OR CAST(b.id AS CHAR) COLLATE utf8mb4_unicode_ci = TRIM(s.setting_value)
+              ORDER BY b.name = TRIM(s.setting_value) DESC
+              LIMIT 1
+            );
+          END IF;
+        END
+        """
+    )
+    print("Trigger trg_activities_default_bike angelegt.")
+
+
 def ensure_database():
     conn = None
     cursor = None
@@ -52,6 +87,7 @@ def ensure_database():
         print("Datenbankverbindung erfolgreich hergestellt.")
 
         _ensure_tour_names_table(cursor)
+        _ensure_default_bike_trigger(cursor)
         conn.commit()
     except mysql.connector.Error as err:
         print(f"Datenbankfehler beim Start: {err}")
