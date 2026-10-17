@@ -120,7 +120,7 @@
     <div class="tracker-card">
         <div class="tracker-card-header">
             <h2>GPX-Dateien</h2>
-            <span class="tracker-source">{{ source_dir }} – neueste {{ config['BIKETRACKER_MAX_FILES'] }} Dateien</span>
+            <span class="tracker-source">{{ source_label }} – neueste {{ config['BIKETRACKER_MAX_FILES'] }} Dateien</span>
         </div>
 
         {% if error %}
@@ -142,7 +142,7 @@
                             <input
                                 type="checkbox"
                                 class="tracker-checkbox file-check"
-                                value="{{ f.name }}"
+                                value="{{ f.id }}"
                                 aria-label="{{ f.name }} auswählen"
                             >
                         </td>
