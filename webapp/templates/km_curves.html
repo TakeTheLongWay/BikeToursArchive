@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="utf-8">
+    <title>MyBikeLog – km-Leistungskurven</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        /* ── Kopfzeile wie km-Stat: Legende links, Filter rechts ── */
+        #kmTopRow {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 5px;
+            flex-wrap: wrap;
+        }
+
+        #kmLegendBox {
+            flex: 1 1 auto;
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            background: #fff;
+            padding: 18px 22px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+
+        .kmLegendLabel {
+            min-width: 150px;
+            font-size: 16px;
+            font-weight: 700;
+            color: #1C3F75;
+        }
+
+        #kmTopRow #filterControls {
+            justify-content: flex-start;
+        }
+
+        #kmTopRow #filterControls select {
+            width: 100%;
+        }
+
+        #kmTopRow #filterControls > div {
+            flex: 1;
+        }
+
+        .legend {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            font-size: 14px;
+            color: #555;
+            flex-wrap: wrap;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .legend-line {
+            width: 22px;
+            height: 3px;
+            border-radius: 2px;
+        }
+
+        .km-card {
+            background: #fff;
+            padding: 5px 25px 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+
+        #curveChart {
+            height: 520px;
+            position: relative;
+        }
+
+        .error {
+            color: #c0392b;
+            padding: 40px 0;
+        }
+    </style>
+</head>
+<body>
+
+<div id="MainMenuDashboard">
+    <button id="btnDashboard" onclick="window.location.href='{{ url_for('pages.index') }}'">Dashboard</button>
+    <button id="btnBikeTracker" onclick="window.location.href='{{ url_for('biketracker.biketracker') }}'">BikeTracker</button>
+    <button id="btnEditGoals" onclick="window.location.href='{{ url_for('pages.mygoals') }}'">Ziele</button>
+    <button id="btnMyBikes" onclick="window.location.href='{{ url_for('pages.mybikes') }}'">Bikes</button>
+    <button id="btnSettings" onclick="window.location.href='{{ url_for('pages.appsettings') }}'">Settings</button>
+    <button id="btnKmStat" onclick="window.location.href='{{ url_for('pages.kmyear') }}'">km-Stat</button>
+    <button id="btnKmCurves" onclick="window.location.href='{{ url_for('pages.kmcurves') }}'">km-Kurven</button>
+</div>
+
+<div id="pageContent">
+
+    <h1 class="title">km-Leistungskurven</h1>
+
+    <div id="kmTopRow">
+        <div id="kmLegendBox">
+            <div class="kmLegendLabel">km-Stand je Tag</div>
+            <div class="legend">
+                <div class="legend-item">
+                    <div class="legend-line" style="background:#d62828;"></div>
+                    <span id="legendCurrent">Aktuelles Jahr</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-line" style="background:#1f6fd1;"></div>
+                    <span id="legendPrev">Vorjahr</span>
+                </div>
+            </div>
+        </div>
+
+        <div id="filterControls">
+            <div>
+                <label for="yearSelect">Jahr</label>
+                <select id="yearSelect"></select>
+            </div>
+        </div>
+    </div>
+
+    <div class="km-card">
+        <div id="curveChart">
+            <canvas id="curveCanvas"></canvas>
+        </div>
+    </div>
+
+</div>
+
+<script>
+let chart = null;
+
+// Combobox mit Jahren befüllen (aktuelles Jahr bis 2022)
+function buildYearSelect() {
+    const select = document.getElementById("yearSelect");
+    const currentYear = new Date().getFullYear();
+    for (let y = currentYear; y >= 2022; y--) {
+        const opt = document.createElement("option");
+        opt.value = y;
+        opt.textContent = y;
+        select.appendChild(opt);
+    }
+    select.addEventListener("change", () => {
+        loadData(parseInt(select.value)).then(buildChart).catch(showError);
+    });
+}
+
+async function loadData(year) {
+    const y = year || new Date().getFullYear();
+    const resp = await fetch(`/api/stats/daily-cumulative?year=${y}`);
+    if (!resp.ok) throw new Error("API-Fehler");
+    return await resp.json();
+}
+
+function showError(err) {
+    document.getElementById("curveChart").innerHTML =
+        `<div class="error">Fehler beim Laden: ${err.message}</div>`;
+}
+
+function buildChart(data) {
+    const { year_current, year_prev, labels, current, prev } = data;
+
+    document.getElementById("legendCurrent").textContent = year_current;
+    document.getElementById("legendPrev").textContent    = year_prev;
+
+    if (chart) chart.destroy();
+
+    const ctx = document.getElementById("curveCanvas").getContext("2d");
+    chart = new Chart(ctx, {
+        type: "line",
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: String(year_current),
+                    data: current,
+                    borderColor: "#d62828",
+                    backgroundColor: "#d62828",
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    tension: 0
+                },
+                {
+                    label: String(year_prev),
+                    data: prev,
+                    borderColor: "#1f6fd1",
+                    backgroundColor: "#1f6fd1",
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    tension: 0
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: false,
+            interaction: { mode: "index", intersect: false },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: (item) => `${item.dataset.label}: ${item.parsed.y.toFixed(0)} km`
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    ticks: {
+                        autoSkip: false,
+                        maxRotation: 0,
+                        // Nur den Monatsersten beschriften
+                        callback: function(value) {
+                            const label = this.getLabelForValue(value);
+                            return label.startsWith("01.") ? label : null;
+                        }
+                    },
+                    grid: { display: false }
+                },
+                y: {
+                    beginAtZero: true,
+                    title: { display: true, text: "km" }
+                }
+            }
+        }
+    });
+}
+
+buildYearSelect();
+loadData().then(buildChart).catch(showError);
+</script>
+
+</body>
+</html>
