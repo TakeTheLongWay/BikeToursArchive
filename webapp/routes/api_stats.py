@@ -68,6 +68,17 @@ def api_stats(cursor):
         cursor.execute(sql_year, params_year)
         row_year = cursor.fetchone()
 
+        sql_ytd = (
+            "SELECT COALESCE(SUM(distance_km),0) AS km "
+            "FROM activities WHERE YEAR(activity_date) = %s AND activity_date <= %s"
+        )
+        params_ytd = [today.year, today]
+        if db_type:
+            sql_ytd += " AND activity_type = %s"
+            params_ytd.append(db_type)
+        cursor.execute(sql_ytd, params_ytd)
+        row_ytd = cursor.fetchone()
+
         sql_week = (
             "SELECT COALESCE(SUM(distance_km),0) AS km, COUNT(*) AS cnt, "
             "COALESCE(SUM(elapsed_time_s),0) AS elapsed_s "
@@ -94,6 +105,7 @@ def api_stats(cursor):
                 "month_count": row_month["cnt"],
                 "year_km": float(row_year["km"]),
                 "year_count": row_year["cnt"],
+                "current_year_to_date_km": float(row_ytd["km"]),
                 "week_km": float(row_week["km"]),
                 "week_count": row_week["cnt"],
                 "week_elapsed_time_s": int(row_week["elapsed_s"]),

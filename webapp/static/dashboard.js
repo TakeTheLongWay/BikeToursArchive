@@ -440,6 +440,13 @@ async function loadData() {
 
         updateDayKmDisplay(selectedDayDateDisplay, safeTours);
 
+        const goalDayAvgYtdEl = document.getElementById("goalDayAvgYtd");
+        if (goalDayAvgYtdEl) {
+            const elapsedDays = getElapsedDaysInYear(getTodayDateOnly().getFullYear());
+            const ytdKm = num(stats.current_year_to_date_km, 0);
+            goalDayAvgYtdEl.textContent = formatDailyKm(elapsedDays > 0 ? ytdKm / elapsedDays : 0);
+        }
+
         const goalYear = num(goals.goal_km_year, 0);
         const doneYear = num(stats.year_km, 0);
         document.getElementById("goalYearDone").textContent = doneYear.toFixed(0);
