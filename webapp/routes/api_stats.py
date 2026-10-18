@@ -157,3 +157,57 @@ def api_monthly_comparison(cursor):
     except Exception as exc:
         current_app.logger.error("FEHLER in api_monthly_comparison: %s", exc)
         return jsonify({"error": str(exc)}), 500
+
+@stats_bp.route("/api/stats/daily-cumulative", methods=["GET"])
+@mysql_connection_wrapper
+def api_daily_cumulative(cursor):
+    """Liefert den kumulierten km-Stand je Kalendertag für ein Jahr und sein Vorjahr."""
+    try:
+        today = date.today()
+        try:
+            year_current = int(request.args.get("year", today.year))
+        except (ValueError, TypeError):
+            year_current = today.year
+        year_prev = year_current - 1
+
+        # Referenzkalender mit 366 Tagen (Schaltjahr), damit beide Jahre auf
+        # derselben x-Achse liegen; der 29.02. übernimmt in Nicht-Schaltjahren den Vortageswert.
+        ref_start = date(2024, 1, 1)
+        ref_days = [ref_start + timedelta(days=i) for i in range(366)]
+        labels = [d.strftime("%d.%m.") for d in ref_days]
+
+        result = {}
+        for year in [year_current, year_prev]:
+            cursor.execute(
+                """
+                SELECT MONTH(activity_date) AS month,
+                       DAY(activity_date) AS day,
+                       COALESCE(SUM(distance_km), 0) AS km
+                FROM activities
+                WHERE YEAR(activity_date) = %s
+                GROUP BY MONTH(activity_date), DAY(activity_date)
+                """,
+                (year,)
+            )
+            daily = {(r["month"], r["day"]): float(r["km"]) for r in cursor.fetchall()}
+
+            values = []
+            total = 0.0
+            for d in ref_days:
+                if year == today.year and (d.month, d.day) > (today.month, today.day):
+                    values.append(None)
+                    continue
+                total += daily.get((d.month, d.day), 0.0)
+                values.append(round(total, 1))
+            result[year] = values
+
+        return jsonify({
+            "year_current": year_current,
+            "year_prev": year_prev,
+            "labels": labels,
+            "current": result[year_current],
+            "prev": result[year_prev],
+        })
+    except Exception as exc:
+        current_app.logger.error("FEHLER in api_daily_cumulative: %s", exc)
+        return jsonify({"error": str(exc)}), 500
