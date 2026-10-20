@@ -15,10 +15,6 @@
             border-left: 4px solid #4B77BE;
         }
 
-        .goals-card h2 {
-            margin: 0 0 10px 0;
-        }
-
         .goal-item {
             display: grid;
             grid-template-columns: 1fr auto 120px;
@@ -26,6 +22,10 @@
             gap: 16px;
             padding: 14px 0;
             border-bottom: 1px solid #e0e6f0;
+        }
+
+        .goal-item:first-child {
+            padding-top: 0;
         }
 
         .goal-item:last-child {
@@ -90,8 +90,6 @@
     <h1 class="title">Ziele</h1>
 
     <div class="goals-card">
-        <h2>Meine Ziele</h2>
-
         <div id="goalsList">
             <div class="goal-item" data-key="annual">
                 <span class="goal-name">Jahresleistung (km)</span>
