@@ -73,6 +73,15 @@ def update_filename(conn, activity_id: int, filename: str) -> None:
         cur.close()
 
 
+def delete_activity(conn, activity_id: int) -> None:
+    cur = conn.cursor()
+    try:
+        cur.execute("DELETE FROM activities WHERE activity_id = %s", (activity_id,))
+        conn.commit()
+    finally:
+        cur.close()
+
+
 def find_duplicate(conn, data: dict):
     cur = conn.cursor()
     try:
@@ -107,11 +116,17 @@ def process_gpx_file(gpx_path: str) -> int:
         new_filename = f"activities/{activity_id}.gpx"
         target_path = os.path.join(target_dir, f"{activity_id}.gpx")
 
-        shutil.copy2(gpx_path, target_path)
+        try:
+            shutil.copy2(gpx_path, target_path)
+            update_filename(conn, activity_id, new_filename)
+        except Exception:
+            # Keinen Datensatz ohne GPX-Datei zurücklassen
+            if os.path.exists(target_path):
+                os.remove(target_path)
+            delete_activity(conn, activity_id)
+            raise
+
         os.remove(gpx_path)
-
-        update_filename(conn, activity_id, new_filename)
-
         return activity_id
     finally:
         conn.close()

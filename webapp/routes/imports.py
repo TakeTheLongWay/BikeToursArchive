@@ -37,6 +37,8 @@ def import_route():
         except Exception as exc:
             current_app.logger.error("Fehler beim Import von %s: %s", filename, exc)
             errors.append({"filename": filename, "error": str(exc)})
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
 
     return jsonify(
         {
