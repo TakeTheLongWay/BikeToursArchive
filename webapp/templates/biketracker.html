@@ -39,9 +39,51 @@
             width: 2.5em;
         }
 
+        #trackerTable th:nth-child(4),
+        #trackerTable td:nth-child(4) {
+            text-align: right;
+        }
+
+        #trackerTable th:nth-child(5),
+        #trackerTable td:nth-child(5) {
+            text-align: center;
+        }
+
         #trackerTable th:last-child,
         #trackerTable td:last-child {
+            width: 3em;
             text-align: right;
+        }
+
+        .btn-tracker-delete {
+            background: transparent;
+            color: #c0392b;
+            padding: 4px 8px;
+            font-size: 16px;
+        }
+
+        .btn-tracker-delete:hover {
+            background: #fdecea;
+        }
+
+        .btn-tracker-delete:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .tracker-imported {
+            color: #2eaf4a;
+            font-weight: 600;
+            text-decoration: none;
+            white-space: nowrap;
+        }
+
+        .tracker-imported:hover {
+            text-decoration: underline;
+        }
+
+        .tracker-not-imported {
+            color: #bbb;
         }
 
         .tracker-checkbox {
@@ -134,6 +176,8 @@
                         <th>Datei</th>
                         <th>Geändert</th>
                         <th>Größe</th>
+                        <th>Importiert</th>
+                        <th></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -150,6 +194,24 @@
                         <td>{{ f.name }}</td>
                         <td>{{ f.date }}</td>
                         <td>{{ "%.1f"|format(f.size_kb) }} KB</td>
+                        <td>
+                            {% if f.import %}
+                                <a class="tracker-imported"
+                                   href="{{ url_for('pages.tour_detail', tour_id=f.import.activity_id) }}"
+                                   title="Zur Tour">✓ {{ f.import.imported_at.strftime("%d.%m.%Y") }}</a>
+                            {% else %}
+                                <span class="tracker-not-imported">–</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <button
+                                class="btn-tracker-delete"
+                                data-file-id="{{ f.id }}"
+                                data-file-name="{{ f.name }}"
+                                title="Datei löschen"
+                                aria-label="{{ f.name }} löschen"
+                            >🗑</button>
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -196,6 +258,33 @@
     btnCancel.addEventListener("click", () => {
         window.location.href = dashboardUrl;
     });
+
+    document.querySelectorAll(".btn-tracker-delete").forEach(btn => btn.addEventListener("click", async () => {
+        const name = btn.dataset.fileName;
+        if (!confirm(`Datei "${name}" löschen?\n\nSie wird in den Ordner "{{ config['BIKETRACKER_DELETED_FOLDER_NAME'] }}" verschoben. Eine bereits importierte Tour bleibt erhalten.`)) return;
+
+        btn.disabled = true;
+        try {
+            const resp = await fetch("{{ url_for('biketracker.biketracker_delete') }}", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ file: btn.dataset.fileId }),
+            });
+            const data = await resp.json();
+
+            if (!resp.ok || !data.ok) {
+                alert(data?.error || "Löschen fehlgeschlagen.");
+                btn.disabled = false;
+                return;
+            }
+
+            // Neu laden, damit die Liste wieder die neuesten Dateien zeigt
+            window.location.reload();
+        } catch (err) {
+            alert("Löschen fehlgeschlagen (Netzwerk/Server).");
+            btn.disabled = false;
+        }
+    }));
 
     btnImport.addEventListener("click", async () => {
         const selected = [...checks].filter(c => c.checked).map(c => c.value);

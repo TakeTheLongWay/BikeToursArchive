@@ -4,6 +4,9 @@ Dateiquelle für die BikeTracker-Seite.
 Zwei Varianten, umschaltbar über BIKETRACKER_SOURCE in config.py:
 - "local": Verzeichnis im Dateisystem (z.B. gemountetes Google Drive G:)
 - "drive": Google Drive API mit Dienstkonto
+
+"Löschen" verschiebt eine Datei in den Unterordner BIKETRACKER_DELETED_FOLDER_NAME,
+da das Dienstkonto Dateien des Drive-Eigentümers nicht in den Papierkorb legen darf.
 """
 import io
 import os
@@ -12,7 +15,8 @@ from datetime import datetime, timezone
 
 from flask import current_app
 
-DRIVE_SCOPES = ["https://www.googleapis.com/auth/drive.readonly"]
+# Vollzugriff nötig, um Dateien in den Gelöscht-Ordner zu verschieben
+DRIVE_SCOPES = ["https://www.googleapis.com/auth/drive"]
 DRIVE_FOLDER_MIME = "application/vnd.google-apps.folder"
 
 
@@ -33,8 +37,9 @@ def _file_entry(file_id: str, name: str, modified: datetime, size_bytes: int) ->
 # ── Lokales Verzeichnis ──────────────────────────────────────────────────────
 
 class LocalSource:
-    def __init__(self, source_dir: str):
+    def __init__(self, source_dir: str, deleted_folder_name: str):
         self.source_dir = source_dir
+        self.deleted_folder_name = deleted_folder_name
 
     @property
     def label(self) -> str:
@@ -55,7 +60,7 @@ class LocalSource:
         entries.sort(key=lambda e: e["mtime"], reverse=True)
         return entries[:max_files]
 
-    def download(self, file_id: str, target_path: str) -> str:
+    def _source_path(self, file_id: str) -> str:
         # Nur reine Dateinamen aus dem Verzeichnis zulassen
         if os.path.basename(file_id) != file_id or not file_id.lower().endswith(".gpx"):
             raise BikeTrackerSourceError("Ungültiger Dateiname.")
@@ -63,18 +68,32 @@ class LocalSource:
         source_path = os.path.join(self.source_dir, file_id)
         if not os.path.isfile(source_path):
             raise BikeTrackerSourceError("Datei nicht gefunden.")
+        return source_path
 
-        shutil.copy2(source_path, target_path)
+    def download(self, file_id: str, target_path: str) -> str:
+        shutil.copy2(self._source_path(file_id), target_path)
+        return file_id
+
+    def delete(self, file_id: str) -> str:
+        source_path = self._source_path(file_id)
+        deleted_dir = os.path.join(self.source_dir, self.deleted_folder_name)
+        try:
+            os.makedirs(deleted_dir, exist_ok=True)
+            # Vorhandene gleichnamige Datei im Gelöscht-Ordner wird überschrieben
+            os.replace(source_path, os.path.join(deleted_dir, file_id))
+        except OSError as exc:
+            raise BikeTrackerSourceError(f"Datei konnte nicht verschoben werden: {exc}") from exc
         return file_id
 
 
 # ── Google Drive API (Dienstkonto) ───────────────────────────────────────────
 
 class DriveSource:
-    def __init__(self, key_file: str, folder_id: str, folder_name: str):
+    def __init__(self, key_file: str, folder_id: str, folder_name: str, deleted_folder_name: str):
         self.key_file = key_file
         self.folder_id = folder_id
         self.folder_name = folder_name
+        self.deleted_folder_name = deleted_folder_name
         self._service = None
 
     @property
@@ -154,21 +173,48 @@ class DriveSource:
 
         return entries
 
-    def download(self, file_id: str, target_path: str) -> str:
-        from googleapiclient.errors import HttpError
-        from googleapiclient.http import MediaIoBaseDownload
-
-        service = self._get_service()
+    def _get_gpx_meta(self, file_id: str) -> dict:
         folder_id = self._resolve_folder_id()
 
         # Nur GPX-Dateien aus dem BikeTracker-Ordner zulassen
-        meta = self._execute(service.files().get(
+        meta = self._execute(self._get_service().files().get(
             fileId=file_id,
             fields="id, name, parents",
             supportsAllDrives=True,
         ))
         if folder_id not in meta.get("parents", []) or not meta["name"].lower().endswith(".gpx"):
             raise BikeTrackerSourceError("Datei gehört nicht zum BikeTracker-Ordner.")
+        return meta
+
+    def _get_deleted_folder_id(self) -> str:
+        folder_id = self._resolve_folder_id()
+        service = self._get_service()
+
+        escaped_name = self.deleted_folder_name.replace("\\", "\\\\").replace("'", "\\'")
+        result = self._execute(service.files().list(
+            q=f"'{folder_id}' in parents and name = '{escaped_name}' "
+              f"and mimeType = '{DRIVE_FOLDER_MIME}' and trashed = false",
+            fields="files(id)",
+            supportsAllDrives=True,
+            includeItemsFromAllDrives=True,
+        ))
+        folders = result.get("files", [])
+        if folders:
+            return folders[0]["id"]
+
+        created = self._execute(service.files().create(
+            body={"name": self.deleted_folder_name, "mimeType": DRIVE_FOLDER_MIME, "parents": [folder_id]},
+            fields="id",
+            supportsAllDrives=True,
+        ))
+        return created["id"]
+
+    def download(self, file_id: str, target_path: str) -> str:
+        from googleapiclient.errors import HttpError
+        from googleapiclient.http import MediaIoBaseDownload
+
+        service = self._get_service()
+        meta = self._get_gpx_meta(file_id)
 
         buffer = io.BytesIO()
         downloader = MediaIoBaseDownload(buffer, service.files().get_media(fileId=file_id, supportsAllDrives=True))
@@ -184,6 +230,17 @@ class DriveSource:
 
         return meta["name"]
 
+    def delete(self, file_id: str) -> str:
+        meta = self._get_gpx_meta(file_id)
+        self._execute(self._get_service().files().update(
+            fileId=file_id,
+            addParents=self._get_deleted_folder_id(),
+            removeParents=self._resolve_folder_id(),
+            fields="id",
+            supportsAllDrives=True,
+        ))
+        return meta["name"]
+
 
 def get_source():
     config = current_app.config
@@ -192,5 +249,6 @@ def get_source():
             key_file=config["BIKETRACKER_DRIVE_KEY_FILE"],
             folder_id=config["BIKETRACKER_DRIVE_FOLDER_ID"],
             folder_name=config["BIKETRACKER_DRIVE_FOLDER_NAME"],
+            deleted_folder_name=config["BIKETRACKER_DELETED_FOLDER_NAME"],
         )
-    return LocalSource(config["BIKETRACKER_DIR"])
+    return LocalSource(config["BIKETRACKER_DIR"], config["BIKETRACKER_DELETED_FOLDER_NAME"])

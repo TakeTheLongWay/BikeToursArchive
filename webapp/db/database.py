@@ -41,6 +41,27 @@ def _ensure_tour_names_table(cursor):
     print(f"Tabelle tour_names angelegt ({cursor.rowcount} Tournamen übernommen).")
 
 
+def _ensure_biketracker_imports_table(cursor):
+    cursor.execute("SHOW TABLES LIKE 'biketracker_imports'")
+    if cursor.fetchone():
+        return
+
+    # Merkt sich, welche BikeTracker-Datei (Drive-ID bzw. Dateiname) zu welcher Tour gehört;
+    # siehe Create_Table_BiketrackerImports.sql
+    cursor.execute(
+        """
+        CREATE TABLE `biketracker_imports` (
+          `file_id` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+          `filename` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+          `activity_id` bigint NOT NULL,
+          `imported_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (`file_id`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        """
+    )
+    print("Tabelle biketracker_imports angelegt.")
+
+
 def _ensure_default_bike_trigger(cursor):
     cursor.execute(
         """
@@ -87,6 +108,7 @@ def ensure_database():
         print("Datenbankverbindung erfolgreich hergestellt.")
 
         _ensure_tour_names_table(cursor)
+        _ensure_biketracker_imports_table(cursor)
         _ensure_default_bike_trigger(cursor)
         conn.commit()
     except mysql.connector.Error as err:
