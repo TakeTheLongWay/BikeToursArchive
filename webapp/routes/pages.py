@@ -143,14 +143,18 @@ def tour_detail(cursor, tour_id):
     if not row:
         return "Tour nicht gefunden", 404
 
-    bikes = _load_bikes(cursor)
-
     cursor.execute(
         "SELECT bike_id FROM activities WHERE activity_id = %s",
         (tour_id,),
     )
     bike_link_row = cursor.fetchone() or {}
     selected_bike_id = bike_link_row.get("bike_id")
+
+    # Nur aktive Bikes (ohne endDate) anbieten; das aktuell zugeordnete Bike bleibt sichtbar
+    bikes = [
+        bike for bike in _load_bikes(cursor)
+        if not bike.get("endDate") or bike["id"] == selected_bike_id
+    ]
 
     gpx_path = build_gpx_path(current_app.config["GPX_BASE_PATH"], row.get("filename"))
 
