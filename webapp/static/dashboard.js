@@ -410,6 +410,15 @@ function buildTourNameCell(tour) {
     return td;
 }
 
+function setActivityCount(elementId, count) {
+    const el = document.getElementById(elementId);
+    if (!el) {
+        return;
+    }
+    const n = num(count, 0);
+    el.textContent = `· ${n} ${n === 1 ? "Aktivität" : "Aktivitäten"}`;
+}
+
 async function loadData() {
     try {
         const type = filterType ? filterType.value : "cycling";
@@ -446,6 +455,10 @@ async function loadData() {
             const ytdKm = num(stats.current_year_to_date_km, 0);
             goalDayAvgYtdEl.textContent = formatDailyKm(elapsedDays > 0 ? ytdKm / elapsedDays : 0);
         }
+
+        setActivityCount("goalWeekCount", stats.week_count);
+        setActivityCount("goalMonthCount", stats.month_count);
+        setActivityCount("goalYearCount", stats.year_count);
 
         const goalYear = num(goals.goal_km_year, 0);
         const doneYear = num(stats.year_km, 0);
