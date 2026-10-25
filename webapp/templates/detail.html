@@ -80,8 +80,45 @@
             margin-bottom: 0;
         }
 
-        #tourActionsBox {
+        /* Rechte Spalte: Blätter-Buttons über der Bike/Download-Box */
+        #tourSideColumn {
             flex: 0 0 var(--dashboard-side-width);
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        #tourNavButtons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 5px;
+        }
+
+        .tourNavButton {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 26px;
+            background: #4B77BE;
+            color: #fff;
+            border-radius: 6px;
+            font-size: 12px;
+            text-decoration: none;
+            transition: background-color 0.2s;
+        }
+
+        .tourNavButton:hover {
+            background: #3a5f9e;
+        }
+
+        .tourNavButton.disabled {
+            background: #c5cfe0;
+            cursor: default;
+        }
+
+        #tourActionsBox {
+            flex: 1 1 auto;
             box-sizing: border-box;
             display: flex;
             align-items: center;
@@ -203,6 +240,20 @@
             </div>
         </div>
 
+        <div id="tourSideColumn">
+        <div id="tourNavButtons">
+            {% if tour.prev_id %}
+                <a class="tourNavButton" href="{{ url_for('pages.tour_detail', tour_id=tour.prev_id) }}" title="Ältere Tour">&#9664;</a>
+            {% else %}
+                <span class="tourNavButton disabled" title="Keine ältere Tour">&#9664;</span>
+            {% endif %}
+            {% if tour.next_id %}
+                <a class="tourNavButton" href="{{ url_for('pages.tour_detail', tour_id=tour.next_id) }}" title="Neuere Tour">&#9654;</a>
+            {% else %}
+                <span class="tourNavButton disabled" title="Keine neuere Tour">&#9654;</span>
+            {% endif %}
+        </div>
+
         <div id="tourActionsBox">
             <label for="tourBikeSelect">Bike</label>
             <select id="tourBikeSelect" data-tour-id="{{ tour.id }}">
@@ -212,6 +263,7 @@
                 {% endfor %}
             </select>
             <a id="btnGpxDownload" href="/api/tours/{{ tour.id }}/gpx" download title="GPX herunterladen">⬇ GPX</a>
+        </div>
         </div>
     </div>
 
@@ -511,6 +563,28 @@
             await saveName();
         });
     };
+
+    // Blättern mit den Pfeiltasten; nicht beim Umbenennen, in der Bike-Auswahl
+    // oder wenn die Karte fokussiert ist (dort verschieben die Pfeiltasten die Karte)
+    document.addEventListener("keydown", (event) => {
+        if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") {
+            return;
+        }
+        if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
+            return;
+        }
+        const target = event.target;
+        if (target.closest("input, select, textarea, [contenteditable='true'], #map")) {
+            return;
+        }
+
+        const index = event.key === "ArrowLeft" ? 0 : 1;
+        const navLink = document.querySelectorAll("#tourNavButtons .tourNavButton")[index];
+        if (navLink && navLink.href) {
+            event.preventDefault();
+            window.location.href = navLink.href;
+        }
+    });
     </script>
 </body>
 </html>

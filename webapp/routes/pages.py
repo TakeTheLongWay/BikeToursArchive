@@ -156,6 +156,28 @@ def tour_detail(cursor, tour_id):
         if not bike.get("endDate") or bike["id"] == selected_bike_id
     ]
 
+    # Blättern: datumsmäßig vorherige/nächste Tour (activity_id entscheidet bei gleichem Datum)
+    cursor.execute(
+        """
+        SELECT activity_id FROM activities
+        WHERE activity_date < %s OR (activity_date = %s AND activity_id < %s)
+        ORDER BY activity_date DESC, activity_id DESC
+        LIMIT 1
+        """,
+        (row["activity_date"], row["activity_date"], tour_id),
+    )
+    prev_row = cursor.fetchone()
+    cursor.execute(
+        """
+        SELECT activity_id FROM activities
+        WHERE activity_date > %s OR (activity_date = %s AND activity_id > %s)
+        ORDER BY activity_date ASC, activity_id ASC
+        LIMIT 1
+        """,
+        (row["activity_date"], row["activity_date"], tour_id),
+    )
+    next_row = cursor.fetchone()
+
     gpx_path = build_gpx_path(current_app.config["GPX_BASE_PATH"], row.get("filename"))
 
     coords = []
@@ -176,6 +198,8 @@ def tour_detail(cursor, tour_id):
         "temp_min_c": row.get("temp_min_c"),
         "temp_max_c": row.get("temp_max_c"),
         "filename": row["filename"],
+        "prev_id": prev_row["activity_id"] if prev_row else None,
+        "next_id": next_row["activity_id"] if next_row else None,
         "coords": coords, # Coords direkt ins Tour-Objekt für das Template
     }
 
