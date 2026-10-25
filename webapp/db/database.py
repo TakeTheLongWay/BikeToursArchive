@@ -62,6 +62,16 @@ def _ensure_biketracker_imports_table(cursor):
     print("Tabelle biketracker_imports angelegt.")
 
 
+def _ensure_temperature_columns(cursor):
+    # Min./Max.-Temperatur aus den GPX-Extensions (bt:tempMin / bt:tempMax)
+    for column in ("temp_min_c", "temp_max_c"):
+        cursor.execute("SHOW COLUMNS FROM activities LIKE %s", (column,))
+        if cursor.fetchone():
+            continue
+        cursor.execute(f"ALTER TABLE activities ADD COLUMN `{column}` decimal(4,1) DEFAULT NULL")
+        print(f"Spalte activities.{column} angelegt.")
+
+
 def _ensure_default_bike_trigger(cursor):
     cursor.execute(
         """
@@ -109,6 +119,7 @@ def ensure_database():
 
         _ensure_tour_names_table(cursor)
         _ensure_biketracker_imports_table(cursor)
+        _ensure_temperature_columns(cursor)
         _ensure_default_bike_trigger(cursor)
         conn.commit()
     except mysql.connector.Error as err:

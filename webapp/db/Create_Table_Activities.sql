@@ -17,6 +17,8 @@ CREATE TABLE `activities` (
   `is_commute` tinyint(1) DEFAULT NULL,
   `bike_id` bigint DEFAULT NULL,
   `media` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `temp_min_c` decimal(4,1) DEFAULT NULL,
+  `temp_max_c` decimal(4,1) DEFAULT NULL,
   PRIMARY KEY (`activity_id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=16710935280 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

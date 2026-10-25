@@ -19,6 +19,17 @@ def haversine(lat1, lon1, lat2, lon2):
     return radius_m * c
 
 
+def _extension_float(gpx, local_name: str):
+    # Wert aus <gpx><extensions> lesen, Namespace-Präfix (z. B. bt:) wird ignoriert
+    for element in gpx.extensions:
+        if element.tag.rsplit("}", 1)[-1] == local_name:
+            try:
+                return float(element.text)
+            except (TypeError, ValueError):
+                return None
+    return None
+
+
 def parse_gpx(file_path: str) -> dict:
     with open(file_path, "r", encoding="utf-8") as file_handle:
         gpx = gpxpy.parse(file_handle)
@@ -76,6 +87,8 @@ def parse_gpx(file_path: str) -> dict:
         "elapsed_time_s": duration_s,
         "distance_km": round(distance_m / 1000, 3),
         "elevation_gain_m": round(elevation_gain, 1),
+        "temp_min_c": _extension_float(gpx, "tempMin"),
+        "temp_max_c": _extension_float(gpx, "tempMax"),
     }
 
 

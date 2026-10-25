@@ -35,9 +35,11 @@ def insert_activity(conn, data: dict) -> int:
             elapsed_time_s,
             distance_km,
             elevation_gain_m,
+            temp_min_c,
+            temp_max_c,
             filename
         )
-        VALUES (%s, %s, %s, %s, %s, %s, %s)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
     """
 
     cur = conn.cursor()
@@ -51,6 +53,8 @@ def insert_activity(conn, data: dict) -> int:
                 data["elapsed_time_s"],
                 data["distance_km"],
                 data["elevation_gain_m"],
+                data.get("temp_min_c"),
+                data.get("temp_max_c"),
                 None,
             ),
         )

@@ -173,6 +173,8 @@ def tour_detail(cursor, tour_id):
         "duration_hm": format_duration_hm(row["elapsed_time_s"]),
         "distance_km": row["distance_km"],
         "total_ascent_m": total_ascent_m or float(row.get("elevation_gain_m") or 0),
+        "temp_min_c": row.get("temp_min_c"),
+        "temp_max_c": row.get("temp_max_c"),
         "filename": row["filename"],
         "coords": coords, # Coords direkt ins Tour-Objekt für das Template
     }

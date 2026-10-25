@@ -197,6 +197,10 @@
                 <div class="goalFrameTitle">Datum</div>
                 <div class="goalFrameValue">{{ tour.date_display }}</div>
             </div>
+            <div class="goalFrame">
+                <div class="goalFrameTitle">Min.Temp: {{ "%.1f °C" | format(tour.temp_min_c | float) if tour.temp_min_c is not none else "n/a" }}</div>
+                <div class="goalFrameTitle">Max.Temp: {{ "%.1f °C" | format(tour.temp_max_c | float) if tour.temp_max_c is not none else "n/a" }}</div>
+            </div>
         </div>
 
         <div id="tourActionsBox">
