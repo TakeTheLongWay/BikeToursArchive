@@ -138,6 +138,11 @@
             border-top: 2px solid #dde4f0;
         }
 
+        .tour-stat-value.tour-stat-na {
+            color: #aab5cc;
+            font-weight: 600;
+        }
+
         .tour-stat-device .tour-stat-value {
             font-size: 12px;
             font-weight: 600;
@@ -315,95 +320,44 @@
 
     <div id="tourLayout">
         <div id="tourSidebar">
-        <div id="tourStatsBox">
-            <div class="tour-stat">
-                <span class="tour-stat-label">Datum</span>
-                <span class="tour-stat-value">{{ tour.date_display }}</span>
+        {# Eine Zeile der Werteliste; ohne Wert (None/leer) steht "n/a" und keine Einheit #}
+        {% macro stat(label, value, unit="", extra_class="") %}
+            <div class="tour-stat {{ extra_class }}">
+                <span class="tour-stat-label">{{ label }}</span>
+                {% if value is none or value == "" %}
+                <span class="tour-stat-value tour-stat-na">n/a</span>
+                {% else %}
+                <span class="tour-stat-value">{{ value }}{% if unit %}<span class="tour-stat-unit"> {{ unit }}</span>{% endif %}</span>
+                {% endif %}
             </div>
-            <div class="tour-stat">
-                <span class="tour-stat-label">Distanz</span>
-                <span class="tour-stat-value">{{ (tour.distance_km | float) | round(0, 'common') | int }}<span class="tour-stat-unit"> km</span></span>
-            </div>
-            <div class="tour-stat">
-                <span class="tour-stat-label">Dauer</span>
-                <span class="tour-stat-value">{{ tour.duration_hm }}<span class="tour-stat-unit"> h</span></span>
-            </div>
-            <div class="tour-stat">
-                <span class="tour-stat-label">Aufstieg</span>
-                <span class="tour-stat-value">{{ (tour.total_ascent_m | float) | round(0, 'common') | int }}<span class="tour-stat-unit"> hm</span></span>
-            </div>
-            <div class="tour-stat">
-                <span class="tour-stat-label">Min. Temp.</span>
-                <span class="tour-stat-value">{{ "%.1f" | format(tour.temp_min_c | float) if tour.temp_min_c is not none else "n/a" }}{% if tour.temp_min_c is not none %}<span class="tour-stat-unit"> °C</span>{% endif %}</span>
-            </div>
-            <div class="tour-stat">
-                <span class="tour-stat-label">Max. Temp.</span>
-                <span class="tour-stat-value">{{ "%.1f" | format(tour.temp_max_c | float) if tour.temp_max_c is not none else "n/a" }}{% if tour.temp_max_c is not none %}<span class="tour-stat-unit"> °C</span>{% endif %}</span>
-            </div>
+        {% endmacro %}
 
-            {# Zusatzwerte aus TCX-Dateien; Zeilen nur anzeigen, wenn Werte vorhanden sind #}
-            {% set has_tcx_values = tour.moving_time_hm or tour.max_speed_kmh is not none
-                or tour.avg_watts is not none or tour.max_watts is not none
-                or tour.avg_cadence_rpm is not none or tour.max_cadence_rpm is not none
-                or tour.calories or tour.min_elevation_m is not none or tour.device_name %}
-            {% if has_tcx_values %}
+        {# Alle Felder werden immer angezeigt, damit die Liste bei jeder Tour gleich aussieht #}
+        <div id="tourStatsBox">
+            {{ stat("Datum", tour.date_display) }}
+            {{ stat("Distanz", (tour.distance_km | float) | round(0, 'common') | int if tour.distance_km is not none else none, "km") }}
+            {{ stat("Dauer", tour.duration_hm or none, "h") }}
+            {{ stat("Aufstieg", (tour.total_ascent_m | float) | round(0, 'common') | int if tour.total_ascent_m is not none else none, "hm") }}
+            {{ stat("Min. Temp.", "%.1f" | format(tour.temp_min_c | float) if tour.temp_min_c is not none else none, "°C") }}
+            {{ stat("Max. Temp.", "%.1f" | format(tour.temp_max_c | float) if tour.temp_max_c is not none else none, "°C") }}
+
+            {# Zusatzwerte, die in der Regel aus TCX-Dateien kommen #}
             <div class="tour-stat-group">
-            {% if tour.moving_time_hm %}
-            <div class="tour-stat">
-                <span class="tour-stat-label">Fahrzeit</span>
-                <span class="tour-stat-value">{{ tour.moving_time_hm }}<span class="tour-stat-unit"> h</span></span>
-            </div>
-            {% endif %}
-            {% if tour.max_speed_kmh is not none %}
-            <div class="tour-stat">
-                <span class="tour-stat-label">Max. Speed</span>
-                <span class="tour-stat-value">{{ "%.1f" | format(tour.max_speed_kmh | float) }}<span class="tour-stat-unit"> km/h</span></span>
-            </div>
-            {% endif %}
-            {% if tour.avg_watts is not none %}
-            <div class="tour-stat">
-                <span class="tour-stat-label">Ø Leistung</span>
-                <span class="tour-stat-value">{{ tour.avg_watts }}<span class="tour-stat-unit"> W</span></span>
-            </div>
-            {% endif %}
-            {% if tour.max_watts is not none %}
-            <div class="tour-stat">
-                <span class="tour-stat-label">Max. Leistung</span>
-                <span class="tour-stat-value">{{ tour.max_watts }}<span class="tour-stat-unit"> W</span></span>
-            </div>
-            {% endif %}
-            {% if tour.avg_cadence_rpm is not none %}
-            <div class="tour-stat">
-                <span class="tour-stat-label">Ø Trittfrequenz</span>
-                <span class="tour-stat-value">{{ tour.avg_cadence_rpm }}<span class="tour-stat-unit"> U/min</span></span>
-            </div>
-            {% endif %}
-            {% if tour.max_cadence_rpm is not none %}
-            <div class="tour-stat">
-                <span class="tour-stat-label">Max. Trittfrequenz</span>
-                <span class="tour-stat-value">{{ tour.max_cadence_rpm }}<span class="tour-stat-unit"> U/min</span></span>
-            </div>
-            {% endif %}
-            {% if tour.calories %}
-            <div class="tour-stat">
-                <span class="tour-stat-label">Kalorien</span>
-                <span class="tour-stat-value">{{ tour.calories }}<span class="tour-stat-unit"> kcal</span></span>
-            </div>
-            {% endif %}
+            {{ stat("Fahrzeit", tour.moving_time_hm, "h") }}
+            {{ stat("Max. Speed", "%.1f" | format(tour.max_speed_kmh | float) if tour.max_speed_kmh is not none else none, "km/h") }}
+            {{ stat("Ø Leistung", tour.avg_watts, "W") }}
+            {{ stat("Max. Leistung", tour.max_watts, "W") }}
+            {{ stat("Ø Trittfrequenz", tour.avg_cadence_rpm, "U/min") }}
+            {{ stat("Max. Trittfrequenz", tour.max_cadence_rpm, "U/min") }}
+            {# 0 kcal bedeutet: kein Wert erfasst #}
+            {{ stat("Kalorien", tour.calories or none, "kcal") }}
             {% if tour.min_elevation_m is not none and tour.max_elevation_m is not none %}
-            <div class="tour-stat">
-                <span class="tour-stat-label">Höhe</span>
-                <span class="tour-stat-value">{{ (tour.min_elevation_m | float) | round | int }} – {{ (tour.max_elevation_m | float) | round | int }}<span class="tour-stat-unit"> m</span></span>
-            </div>
+                {{ stat("Höhe", "%d – %d" | format((tour.min_elevation_m | float) | round | int, (tour.max_elevation_m | float) | round | int), "m") }}
+            {% else %}
+                {{ stat("Höhe", none) }}
             {% endif %}
-            {% if tour.device_name %}
-            <div class="tour-stat tour-stat-device">
-                <span class="tour-stat-label">Gerät</span>
-                <span class="tour-stat-value">{{ tour.device_name }}</span>
+            {{ stat("Gerät", tour.device_name, extra_class="tour-stat-device") }}
             </div>
-            {% endif %}
-            </div>
-            {% endif %}
         </div>
 
         <div id="tourActionsBox">
