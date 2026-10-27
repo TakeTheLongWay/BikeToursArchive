@@ -5,7 +5,7 @@ from flask import current_app, has_app_context
 
 from ..config import GPX_IMPORT_TARGET_DIR
 from ..db.database import get_db_connection
-from .gpx_utils import parse_gpx
+from .track_files import parse_track_file, track_extension
 
 # Toleranz für den Streckenvergleich bei der Duplikatprüfung
 DUPLICATE_DISTANCE_TOLERANCE_KM = 0.01
@@ -26,38 +26,40 @@ def _get_target_dir():
     return GPX_IMPORT_TARGET_DIR
 
 
+# Spalten, die beim Import aus der Tourdatei befüllt werden; fehlende Werte bleiben NULL
+INSERT_COLUMNS = (
+    "activity_date",
+    "activity_name",
+    "activity_type",
+    "elapsed_time_s",
+    "distance_km",
+    "elevation_gain_m",
+    "min_elevation_m",
+    "max_elevation_m",
+    "temp_min_c",
+    "temp_max_c",
+    "avg_watts",
+    "max_watts",
+    "calories",
+    "moving_time_s",
+    "max_speed_kmh",
+    "avg_cadence_rpm",
+    "max_cadence_rpm",
+    "avg_heart_rate_bpm",
+    "max_heart_rate_bpm",
+    "device_name",
+)
+
+
 def insert_activity(conn, data: dict) -> int:
-    sql = """
-        INSERT INTO activities (
-            activity_date,
-            activity_name,
-            activity_type,
-            elapsed_time_s,
-            distance_km,
-            elevation_gain_m,
-            temp_min_c,
-            temp_max_c,
-            filename
-        )
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+    sql = f"""
+        INSERT INTO activities ({", ".join(INSERT_COLUMNS)}, filename)
+        VALUES ({", ".join(["%s"] * len(INSERT_COLUMNS))}, NULL)
     """
 
     cur = conn.cursor()
     try:
-        cur.execute(
-            sql,
-            (
-                data["activity_date"],
-                data["activity_name"],
-                data["activity_type"],
-                data["elapsed_time_s"],
-                data["distance_km"],
-                data["elevation_gain_m"],
-                data.get("temp_min_c"),
-                data.get("temp_max_c"),
-                None,
-            ),
-        )
+        cur.execute(sql, tuple(data.get(column) for column in INSERT_COLUMNS))
         activity_id = cur.lastrowid
         conn.commit()
         return int(activity_id)
@@ -104,34 +106,35 @@ def find_duplicate(conn, data: dict):
         cur.close()
 
 
-def process_gpx_file(gpx_path: str) -> int:
-    gpx_data = parse_gpx(gpx_path)
+def process_track_file(file_path: str, filename: str = None) -> int:
+    """Importiert eine GPX- oder TCX-Datei; das Format ergibt sich aus der Endung von filename bzw. file_path."""
+    track_data = parse_track_file(file_path, filename)
+    extension = track_extension(filename or file_path)
     target_dir = _get_target_dir()
     os.makedirs(target_dir, exist_ok=True)
 
     conn = get_db_connection()
     try:
-        duplicate = find_duplicate(conn, gpx_data)
+        duplicate = find_duplicate(conn, track_data)
         if duplicate:
             raise DuplicateActivityError(int(duplicate[0]), duplicate[1])
 
-        activity_id = insert_activity(conn, gpx_data)
+        activity_id = insert_activity(conn, track_data)
 
-        new_filename = f"activities/{activity_id}.gpx"
-        target_path = os.path.join(target_dir, f"{activity_id}.gpx")
+        new_filename = f"activities/{activity_id}{extension}"
+        target_path = os.path.join(target_dir, f"{activity_id}{extension}")
 
         try:
-            shutil.copy2(gpx_path, target_path)
+            shutil.copy2(file_path, target_path)
             update_filename(conn, activity_id, new_filename)
         except Exception:
-            # Keinen Datensatz ohne GPX-Datei zurücklassen
+            # Keinen Datensatz ohne Tourdatei zurücklassen
             if os.path.exists(target_path):
                 os.remove(target_path)
             delete_activity(conn, activity_id)
             raise
 
-        os.remove(gpx_path)
+        os.remove(file_path)
         return activity_id
     finally:
         conn.close()
-

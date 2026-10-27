@@ -72,6 +72,34 @@ def _ensure_temperature_columns(cursor):
         print(f"Spalte activities.{column} angelegt.")
 
 
+# Zusatzfelder aus TCX-Dateien (Lap-Summen bzw. aus den Trackpoints berechnet)
+TCX_COLUMNS = (
+    # Lap/TotalTimeSeconds: reine Fahrzeit ohne Pausen
+    ("moving_time_s", "int"),
+    # Lap/MaximumSpeed (m/s, umgerechnet in km/h)
+    ("max_speed_kmh", "decimal(5,1)"),
+    # Lap/Cadence bzw. Maximum aus Trackpoint/Cadence
+    ("avg_cadence_rpm", "smallint"),
+    ("max_cadence_rpm", "smallint"),
+    # Maximum aus Trackpoint/Extensions/TPX/Watts
+    ("max_watts", "int"),
+    # Lap/AverageHeartRateBpm / MaximumHeartRateBpm (0 = kein Sensor -> NULL)
+    ("avg_heart_rate_bpm", "smallint"),
+    ("max_heart_rate_bpm", "smallint"),
+    # Activity/Creator/Name, z. B. "Bosch eBike Connect with barometer"
+    ("device_name", "varchar(255) COLLATE utf8mb4_unicode_ci"),
+)
+
+
+def _ensure_tcx_columns(cursor):
+    for column, column_type in TCX_COLUMNS:
+        cursor.execute("SHOW COLUMNS FROM activities LIKE %s", (column,))
+        if cursor.fetchone():
+            continue
+        cursor.execute(f"ALTER TABLE activities ADD COLUMN `{column}` {column_type} DEFAULT NULL")
+        print(f"Spalte activities.{column} angelegt.")
+
+
 def _ensure_default_bike_trigger(cursor):
     cursor.execute(
         """
@@ -120,6 +148,7 @@ def ensure_database():
         _ensure_tour_names_table(cursor)
         _ensure_biketracker_imports_table(cursor)
         _ensure_temperature_columns(cursor)
+        _ensure_tcx_columns(cursor)
         _ensure_default_bike_trigger(cursor)
         conn.commit()
     except mysql.connector.Error as err:

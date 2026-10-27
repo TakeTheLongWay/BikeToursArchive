@@ -6,7 +6,7 @@ from flask import Blueprint, current_app, jsonify, render_template, request
 
 from ..db.database import get_db_connection
 from ..services.biketracker_source import BikeTrackerSourceError, get_source
-from ..services.importer import DuplicateActivityError, process_gpx_file
+from ..services.importer import DuplicateActivityError, process_track_file
 
 biketracker_bp = Blueprint("biketracker", __name__)
 
@@ -75,7 +75,7 @@ def biketracker():
     error = None
 
     try:
-        files = source.list_latest_gpx(current_app.config["BIKETRACKER_MAX_FILES"])
+        files = source.list_latest_files(current_app.config["BIKETRACKER_MAX_FILES"])
     except BikeTrackerSourceError as exc:
         current_app.logger.error("BikeTracker-Quelle nicht lesbar (%s): %s", source.label, exc)
         error = str(exc)
@@ -106,13 +106,14 @@ def biketracker_import():
     errors = []
 
     for file_id in file_ids:
-        # Kopie importieren, da process_gpx_file die Quelldatei entfernt
-        tmp_path = os.path.join(upload_tmp_dir, f"biketracker_{uuid.uuid4().hex}.gpx")
+        # Kopie importieren, da process_track_file die Quelldatei entfernt;
+        # das Format (GPX/TCX) ergibt sich aus dem Originaldateinamen
+        tmp_path = os.path.join(upload_tmp_dir, f"biketracker_{uuid.uuid4().hex}.tmp")
         filename = file_id
         activity_id = None
         try:
             filename = source.download(file_id, tmp_path)
-            activity_id = process_gpx_file(tmp_path)
+            activity_id = process_track_file(tmp_path, filename)
             imported_ids.append(activity_id)
         except DuplicateActivityError as exc:
             # Tour ist schon vorhanden: Datei ebenfalls als importiert merken

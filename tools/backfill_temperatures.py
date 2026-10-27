@@ -36,6 +36,7 @@ def main():
             SELECT activity_id, filename
             FROM activities
             WHERE filename IS NOT NULL
+              AND LOWER(filename) LIKE '%.gpx'
               AND temp_min_c IS NULL
               AND temp_max_c IS NULL
             """

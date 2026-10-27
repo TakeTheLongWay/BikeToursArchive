@@ -15,6 +15,8 @@ from datetime import datetime, timezone
 
 from flask import current_app
 
+from .track_files import is_track_file
+
 # Vollzugriff nötig, um Dateien in den Gelöscht-Ordner zu verschieben
 DRIVE_SCOPES = ["https://www.googleapis.com/auth/drive"]
 DRIVE_FOLDER_MIME = "application/vnd.google-apps.folder"
@@ -28,6 +30,7 @@ def _file_entry(file_id: str, name: str, modified: datetime, size_bytes: int) ->
     return {
         "id": file_id,
         "name": name,
+        "format": os.path.splitext(name)[1].lstrip(".").upper(),
         "mtime": modified,
         "date": modified.strftime("%d.%m.%Y %H:%M"),
         "size_kb": size_bytes / 1024,
@@ -45,12 +48,12 @@ class LocalSource:
     def label(self) -> str:
         return self.source_dir
 
-    def list_latest_gpx(self, max_files: int) -> list:
+    def list_latest_files(self, max_files: int) -> list:
         entries = []
         try:
             with os.scandir(self.source_dir) as it:
                 for entry in it:
-                    if entry.is_file() and entry.name.lower().endswith(".gpx"):
+                    if entry.is_file() and is_track_file(entry.name):
                         stat = entry.stat()
                         modified = datetime.fromtimestamp(stat.st_mtime)
                         entries.append(_file_entry(entry.name, entry.name, modified, stat.st_size))
@@ -62,7 +65,7 @@ class LocalSource:
 
     def _source_path(self, file_id: str) -> str:
         # Nur reine Dateinamen aus dem Verzeichnis zulassen
-        if os.path.basename(file_id) != file_id or not file_id.lower().endswith(".gpx"):
+        if os.path.basename(file_id) != file_id or not is_track_file(file_id):
             raise BikeTrackerSourceError("Ungültiger Dateiname.")
 
         source_path = os.path.join(self.source_dir, file_id)
@@ -150,7 +153,7 @@ class DriveSource:
         self.folder_id = folders[0]["id"]
         return self.folder_id
 
-    def list_latest_gpx(self, max_files: int) -> list:
+    def list_latest_files(self, max_files: int) -> list:
         folder_id = self._resolve_folder_id()
         result = self._execute(self._get_service().files().list(
             q=f"'{folder_id}' in parents and trashed = false and mimeType != '{DRIVE_FOLDER_MIME}'",
@@ -163,7 +166,7 @@ class DriveSource:
 
         entries = []
         for f in result.get("files", []):
-            if not f["name"].lower().endswith(".gpx"):
+            if not is_track_file(f["name"]):
                 continue
             modified = datetime.fromisoformat(f["modifiedTime"].replace("Z", "+00:00"))
             modified = modified.astimezone().replace(tzinfo=None)
@@ -173,16 +176,16 @@ class DriveSource:
 
         return entries
 
-    def _get_gpx_meta(self, file_id: str) -> dict:
+    def _get_file_meta(self, file_id: str) -> dict:
         folder_id = self._resolve_folder_id()
 
-        # Nur GPX-Dateien aus dem BikeTracker-Ordner zulassen
+        # Nur GPX-/TCX-Dateien aus dem BikeTracker-Ordner zulassen
         meta = self._execute(self._get_service().files().get(
             fileId=file_id,
             fields="id, name, parents",
             supportsAllDrives=True,
         ))
-        if folder_id not in meta.get("parents", []) or not meta["name"].lower().endswith(".gpx"):
+        if folder_id not in meta.get("parents", []) or not is_track_file(meta["name"]):
             raise BikeTrackerSourceError("Datei gehört nicht zum BikeTracker-Ordner.")
         return meta
 
@@ -214,7 +217,7 @@ class DriveSource:
         from googleapiclient.http import MediaIoBaseDownload
 
         service = self._get_service()
-        meta = self._get_gpx_meta(file_id)
+        meta = self._get_file_meta(file_id)
 
         buffer = io.BytesIO()
         downloader = MediaIoBaseDownload(buffer, service.files().get_media(fileId=file_id, supportsAllDrives=True))
@@ -231,7 +234,7 @@ class DriveSource:
         return meta["name"]
 
     def delete(self, file_id: str) -> str:
-        meta = self._get_gpx_meta(file_id)
+        meta = self._get_file_meta(file_id)
         self._execute(self._get_service().files().update(
             fileId=file_id,
             addParents=self._get_deleted_folder_id(),

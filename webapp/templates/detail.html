@@ -57,27 +57,54 @@
             align-items: stretch;
         }
 
+        /* Werte brechen innerhalb der Box um, die Bike/Download-Spalte bleibt rechts */
         #tourStatsBox {
             display: flex;
             gap: 5px;
-            flex: 1 1 auto;
+            flex: 1 1 0;
+            min-width: 0;
             flex-wrap: wrap;
+            align-content: flex-start;
         }
 
+        /* Kompakte Wertboxen, damit auch die TCX-Zusatzwerte in eine Zeile passen */
         #tourStatsBox .goalFrame {
-            max-width: none;
-            padding: 10px;
+            flex: 1 1 105px;
+            max-width: 170px;
+            padding: 6px 8px;
+            border-radius: 10px;
+            border-left-width: 3px;
             display: flex;
             flex-direction: column;
             justify-content: center;
         }
 
+        #tourStatsBox .goalFrameWide {
+            flex-basis: 150px;
+            max-width: 240px;
+        }
+
         #tourStatsBox .goalFrameTitle {
+            font-size: 12px;
             margin-bottom: 2px;
         }
 
         #tourStatsBox .goalFrameValue {
+            font-size: 15px;
             margin-bottom: 0;
+            white-space: nowrap;
+        }
+
+        #tourStatsBox .goalFrameUnit {
+            font-size: 11px;
+            font-weight: 600;
+            color: #888;
+        }
+
+        #tourStatsBox .goalFrameText {
+            font-size: 12px;
+            font-weight: 600;
+            color: #1C3F75;
         }
 
         /* Rechte Spalte: Blätter-Buttons über der Bike/Download-Box */
@@ -159,21 +186,43 @@
             background: #3a5f9e;
         }
 
+        /* Seite füllt genau den Bildschirm: die Karte nimmt den Platz, der neben
+           Kopfzeile und Höhenprofil übrig bleibt, so sind Track und Höhenlinie
+           gleichzeitig sichtbar. Bei sehr kleinem Fenster wird gescrollt. */
+        #pageContent {
+            height: 100vh;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+        }
+
         .detail-card {
             background: #fff;
-            padding: 5px 25px 25px;
+            padding: 10px;
             border-radius: 12px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.05);
             margin-bottom: 5px;
+            box-sizing: border-box;
+        }
+
+        #mapCard {
+            flex: 1 1 auto;
+            min-height: 280px;
+            display: flex;
         }
 
         #map {
-            height: 560px;
+            flex: 1 1 auto;
             border-radius: 8px;
         }
 
+        #elevationCard {
+            flex: 0 0 auto;
+            margin-bottom: 0;
+        }
+
         #elevationChart {
-            height: 200px;
+            height: 150px;
         }
 
         #elevationChart canvas {
@@ -238,6 +287,57 @@
                 <div class="goalFrameTitle">Min.Temp: {{ "%.1f °C" | format(tour.temp_min_c | float) if tour.temp_min_c is not none else "n/a" }}</div>
                 <div class="goalFrameTitle">Max.Temp: {{ "%.1f °C" | format(tour.temp_max_c | float) if tour.temp_max_c is not none else "n/a" }}</div>
             </div>
+            {# Zusatzwerte aus TCX-Dateien; Boxen nur anzeigen, wenn Werte vorhanden sind #}
+            {% if tour.moving_time_hm %}
+            <div class="goalFrame">
+                <div class="goalFrameTitle">Fahrzeit</div>
+                <div class="goalFrameValue">{{ tour.moving_time_hm }} h</div>
+            </div>
+            {% endif %}
+            {% if tour.max_speed_kmh is not none %}
+            <div class="goalFrame">
+                <div class="goalFrameTitle">Max. Speed</div>
+                <div class="goalFrameValue">{{ "%.1f" | format(tour.max_speed_kmh | float) }} km/h</div>
+            </div>
+            {% endif %}
+            {% if tour.avg_watts is not none or tour.max_watts is not none %}
+            <div class="goalFrame">
+                <div class="goalFrameTitle">Leistung</div>
+                <div class="goalFrameValue">
+                    {{ tour.avg_watts if tour.avg_watts is not none else "–" }}<span class="goalFrameUnit"> Ø</span>
+                    / {{ tour.max_watts if tour.max_watts is not none else "–" }}<span class="goalFrameUnit"> max W</span>
+                </div>
+            </div>
+            {% endif %}
+            {% if tour.avg_cadence_rpm is not none or tour.max_cadence_rpm is not none %}
+            <div class="goalFrame">
+                <div class="goalFrameTitle">Trittfrequenz</div>
+                <div class="goalFrameValue">
+                    {{ tour.avg_cadence_rpm if tour.avg_cadence_rpm is not none else "–" }}<span class="goalFrameUnit"> Ø</span>
+                    / {{ tour.max_cadence_rpm if tour.max_cadence_rpm is not none else "–" }}<span class="goalFrameUnit"> max U/min</span>
+                </div>
+            </div>
+            {% endif %}
+            {% if tour.calories %}
+            <div class="goalFrame">
+                <div class="goalFrameTitle">Kalorien</div>
+                <div class="goalFrameValue">{{ tour.calories }} kcal</div>
+            </div>
+            {% endif %}
+            {% if tour.min_elevation_m is not none and tour.max_elevation_m is not none %}
+            <div class="goalFrame">
+                <div class="goalFrameTitle">Höhe</div>
+                <div class="goalFrameValue">
+                    {{ (tour.min_elevation_m | float) | round | int }} – {{ (tour.max_elevation_m | float) | round | int }}<span class="goalFrameUnit"> m</span>
+                </div>
+            </div>
+            {% endif %}
+            {% if tour.device_name %}
+            <div class="goalFrame goalFrameWide">
+                <div class="goalFrameTitle">Gerät</div>
+                <div class="goalFrameText">{{ tour.device_name }}</div>
+            </div>
+            {% endif %}
         </div>
 
         <div id="tourSideColumn">
@@ -262,16 +362,16 @@
                     <option value="{{ bike.id }}" {% if selected_bike_id == bike.id %}selected{% endif %}>{{ bike.name }}</option>
                 {% endfor %}
             </select>
-            <a id="btnGpxDownload" href="/api/tours/{{ tour.id }}/gpx" download title="GPX herunterladen">⬇ GPX</a>
+            <a id="btnGpxDownload" href="/api/tours/{{ tour.id }}/gpx" download title="{{ tour.file_format }} herunterladen">⬇ {{ tour.file_format }}</a>
         </div>
         </div>
     </div>
 
-    <div class="detail-card">
+    <div class="detail-card" id="mapCard">
         <div id="map"></div>
     </div>
 
-    <div class="detail-card">
+    <div class="detail-card" id="elevationCard">
         <div id="elevationChart">
             <canvas id="myChart"></canvas>
         </div>
@@ -318,8 +418,63 @@
             const elevationData = drawCoords.map(p => p[2]);
             const labels = drawCoords.map((_, index) => index);
 
-            const ctx = document.getElementById("myChart").getContext("2d");
+            // Zurückgelegte Strecke je Punkt (km) für den Tooltip des Höhenprofils
+            const toRad = deg => deg * Math.PI / 180;
+            const distancesKm = [0];
+            for (let i = 1; i < drawCoords.length; i++) {
+                const [lat1, lon1] = drawCoords[i - 1];
+                const [lat2, lon2] = drawCoords[i];
+                const a = Math.sin(toRad(lat2 - lat1) / 2) ** 2
+                    + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(toRad(lon2 - lon1) / 2) ** 2;
+                distancesKm.push(distancesKm[i - 1] + 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+            }
+
+            // Markierung auf der Karte, folgt der Maus über dem Höhenprofil
+            const hoverMarker = L.circleMarker([0, 0], {
+                radius: 7,
+                color: "#fff",
+                weight: 2,
+                fillColor: "#E8590C",
+                fillOpacity: 1
+            });
+
+            function showHoverMarker(index) {
+                const point = drawCoords[index];
+                if (!point) return;
+                hoverMarker.setLatLng([point[0], point[1]]);
+                if (!map.hasLayer(hoverMarker)) hoverMarker.addTo(map);
+            }
+
+            function hideHoverMarker() {
+                if (map.hasLayer(hoverMarker)) map.removeLayer(hoverMarker);
+            }
+
+            // Senkrechte Linie an der Hover-Position im Höhenprofil
+            const hoverLinePlugin = {
+                id: "hoverLine",
+                afterDatasetsDraw(chart) {
+                    const active = chart.tooltip && chart.tooltip.getActiveElements();
+                    if (!active || active.length === 0) return;
+                    const x = active[0].element.x;
+                    const { top, bottom } = chart.chartArea;
+                    const c = chart.ctx;
+                    c.save();
+                    c.beginPath();
+                    c.moveTo(x, top);
+                    c.lineTo(x, bottom);
+                    c.lineWidth = 1;
+                    c.strokeStyle = "#E8590C";
+                    c.stroke();
+                    c.restore();
+                }
+            };
+
+            const chartCanvas = document.getElementById("myChart");
+            chartCanvas.addEventListener("mouseleave", hideHoverMarker);
+
+            const ctx = chartCanvas.getContext("2d");
             new Chart(ctx, {
+                plugins: [hoverLinePlugin],
                 type: "line",
                 data: {
                     labels: labels,
@@ -336,6 +491,24 @@
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    // Nächsten Punkt entlang der x-Achse treffen, nicht nur direkt auf der Linie
+                    interaction: { mode: "index", intersect: false },
+                    onHover: (event, elements) => {
+                        if (elements.length > 0) {
+                            showHoverMarker(elements[0].index);
+                        } else {
+                            hideHoverMarker();
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            displayColors: false,
+                            callbacks: {
+                                title: items => `${distancesKm[items[0].dataIndex].toFixed(1).replace(".", ",")} km`,
+                                label: item => `Höhe: ${Math.round(item.parsed.y)} m`
+                            }
+                        }
+                    },
                     scales: {
                         x: { display: false },
                         y: {

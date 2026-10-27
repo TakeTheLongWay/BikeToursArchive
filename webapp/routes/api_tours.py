@@ -4,6 +4,7 @@ from datetime import date
 from flask import Blueprint, current_app, jsonify, request, send_file
 
 from ..db.database import mysql_connection_wrapper
+from ..services.track_files import MIME_TYPES, track_extension
 from ..utils import (
     format_date_display,
     format_duration_hm,
@@ -220,24 +221,26 @@ def api_download_gpx(cursor, tour_id):
 
         filename = row.get("filename")
         if not filename:
-            return jsonify({"status": "error", "message": "Keine GPX-Datei vorhanden."}), 404
+            return jsonify({"status": "error", "message": "Keine Tourdatei vorhanden."}), 404
 
         gpx_base = current_app.config["GPX_BASE_PATH"]
         gpx_path = os.path.join(gpx_base, filename)
 
         if not os.path.exists(gpx_path):
-            return jsonify({"status": "error", "message": "GPX-Datei nicht gefunden."}), 404
+            return jsonify({"status": "error", "message": "Tourdatei nicht gefunden."}), 404
 
         # Dateiname aus Tourname ableiten (Sonderzeichen bereinigen)
         tour_name = row.get("activity_name", f"tour_{tour_id}")
         safe_name = "".join(c if c.isalnum() or c in " _-" else "_" for c in tour_name).strip()
-        download_name = f"{safe_name}.gpx"
+        # Endung und MIME-Typ der gespeicherten Datei (GPX oder TCX) übernehmen
+        extension = track_extension(filename) or ".gpx"
+        download_name = f"{safe_name}{extension}"
 
         return send_file(
             gpx_path,
             as_attachment=True,
             download_name=download_name,
-            mimetype="application/gpx+xml",
+            mimetype=MIME_TYPES.get(extension, "application/octet-stream"),
         )
     except Exception as exc:
         current_app.logger.error("FEHLER beim GPX-Download Tour %s: %s", tour_id, exc)

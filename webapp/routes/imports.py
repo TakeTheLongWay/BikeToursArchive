@@ -3,7 +3,8 @@ import os
 from flask import Blueprint, current_app, jsonify, request
 from werkzeug.utils import secure_filename
 
-from ..services.importer import DuplicateActivityError, process_gpx_file
+from ..services.importer import DuplicateActivityError, process_track_file
+from ..services.track_files import SUPPORTED_EXTENSIONS, is_track_file
 
 imports_bp = Blueprint("imports", __name__)
 
@@ -25,11 +26,15 @@ def import_route():
             continue
 
         filename = secure_filename(uploaded_file.filename)
+        if not is_track_file(filename):
+            errors.append({"filename": filename, "error": f"Nur {', '.join(SUPPORTED_EXTENSIONS)}-Dateien erlaubt."})
+            continue
+
         tmp_path = os.path.join(upload_tmp_dir, filename)
 
         try:
             uploaded_file.save(tmp_path)
-            activity_id = process_gpx_file(tmp_path)
+            activity_id = process_track_file(tmp_path)
             imported_ids.append(activity_id)
         except DuplicateActivityError as exc:
             duplicates.append({"filename": filename, "activity_id": exc.activity_id, "activity_name": exc.activity_name})

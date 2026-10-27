@@ -1,7 +1,7 @@
 from flask import Blueprint, current_app, render_template, request, send_from_directory
 from datetime import datetime
 from ..db.database import mysql_connection_wrapper
-from ..services.gpx_utils import load_gpx_data
+from ..services.track_files import load_track_data, track_extension
 from ..utils import build_gpx_path, format_date_display, format_duration_hm
 
 pages_bp = Blueprint("pages", __name__)
@@ -178,14 +178,14 @@ def tour_detail(cursor, tour_id):
     )
     next_row = cursor.fetchone()
 
-    gpx_path = build_gpx_path(current_app.config["GPX_BASE_PATH"], row.get("filename"))
+    track_path = build_gpx_path(current_app.config["GPX_BASE_PATH"], row.get("filename"))
 
     coords = []
     total_ascent_m = 0
-    if gpx_path:
+    if track_path:
         import os
-        if os.path.exists(gpx_path):
-            coords, total_ascent_m = load_gpx_data(gpx_path)
+        if os.path.exists(track_path):
+            coords, total_ascent_m = load_track_data(track_path)
 
     # Dictionary-Keys an detail.html angepasst
     tour_data = {
@@ -197,7 +197,19 @@ def tour_detail(cursor, tour_id):
         "total_ascent_m": total_ascent_m or float(row.get("elevation_gain_m") or 0),
         "temp_min_c": row.get("temp_min_c"),
         "temp_max_c": row.get("temp_max_c"),
+        # Zusatzwerte aus TCX-Dateien (bei GPX-Touren meist leer)
+        "moving_time_hm": format_duration_hm(row["moving_time_s"]) if row.get("moving_time_s") else None,
+        "max_speed_kmh": row.get("max_speed_kmh"),
+        "avg_watts": row.get("avg_watts"),
+        "max_watts": row.get("max_watts"),
+        "avg_cadence_rpm": row.get("avg_cadence_rpm"),
+        "max_cadence_rpm": row.get("max_cadence_rpm"),
+        "calories": row.get("calories"),
+        "min_elevation_m": row.get("min_elevation_m"),
+        "max_elevation_m": row.get("max_elevation_m"),
+        "device_name": row.get("device_name"),
         "filename": row["filename"],
+        "file_format": track_extension(row["filename"]).lstrip(".").upper() or "GPX",
         "prev_id": prev_row["activity_id"] if prev_row else None,
         "next_id": next_row["activity_id"] if next_row else None,
         "coords": coords, # Coords direkt ins Tour-Objekt für das Template

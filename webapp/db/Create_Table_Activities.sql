@@ -19,6 +19,15 @@ CREATE TABLE `activities` (
   `media` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `temp_min_c` decimal(4,1) DEFAULT NULL,
   `temp_max_c` decimal(4,1) DEFAULT NULL,
+  -- Zusatzfelder aus TCX-Dateien (z. B. Bosch eBike Connect)
+  `moving_time_s` int DEFAULT NULL,
+  `max_speed_kmh` decimal(5,1) DEFAULT NULL,
+  `avg_cadence_rpm` smallint DEFAULT NULL,
+  `max_cadence_rpm` smallint DEFAULT NULL,
+  `max_watts` int DEFAULT NULL,
+  `avg_heart_rate_bpm` smallint DEFAULT NULL,
+  `max_heart_rate_bpm` smallint DEFAULT NULL,
+  `device_name` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   PRIMARY KEY (`activity_id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=16710935280 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
