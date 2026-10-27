@@ -7,6 +7,9 @@ Zwei Varianten, umschaltbar über BIKETRACKER_SOURCE in config.py:
 
 "Löschen" verschiebt eine Datei in den Unterordner BIKETRACKER_DELETED_FOLDER_NAME,
 da das Dienstkonto Dateien des Drive-Eigentümers nicht in den Papierkorb legen darf.
+
+Die Tourbilder/-videos (Tabelle media) liegen im Unterordner BIKETRACKER_IMAGES_FOLDER_NAME
+und werden über read_media() für die Tourbilder-Seite geladen.
 """
 import io
 import os
@@ -20,6 +23,10 @@ from .track_files import is_track_file
 # Vollzugriff nötig, um Dateien in den Gelöscht-Ordner zu verschieben
 DRIVE_SCOPES = ["https://www.googleapis.com/auth/drive"]
 DRIVE_FOLDER_MIME = "application/vnd.google-apps.folder"
+
+# Dateiname -> Drive-ID im Bilder-Ordner; die Namen sind eindeutige UUIDs und ändern sich
+# nicht, daher für die Laufzeit der App zwischengespeichert
+_drive_media_file_ids = {}
 
 
 class BikeTrackerSourceError(Exception):
@@ -39,10 +46,17 @@ def _file_entry(file_id: str, name: str, modified: datetime, size_bytes: int) ->
 
 # ── Lokales Verzeichnis ──────────────────────────────────────────────────────
 
+def _check_media_filename(filename: str) -> None:
+    # Nur reine Dateinamen ohne Pfadanteil zulassen
+    if not filename or os.path.basename(filename) != filename:
+        raise BikeTrackerSourceError("Ungültiger Dateiname.")
+
+
 class LocalSource:
-    def __init__(self, source_dir: str, deleted_folder_name: str):
+    def __init__(self, source_dir: str, deleted_folder_name: str, images_folder_name: str):
         self.source_dir = source_dir
         self.deleted_folder_name = deleted_folder_name
+        self.images_folder_name = images_folder_name
 
     @property
     def label(self) -> str:
@@ -88,15 +102,26 @@ class LocalSource:
             raise BikeTrackerSourceError(f"Datei konnte nicht verschoben werden: {exc}") from exc
         return file_id
 
+    def read_media(self, filename: str) -> bytes:
+        _check_media_filename(filename)
+        media_path = os.path.join(self.source_dir, self.images_folder_name, filename)
+        try:
+            with open(media_path, "rb") as fh:
+                return fh.read()
+        except OSError as exc:
+            raise BikeTrackerSourceError("Datei nicht gefunden.") from exc
+
 
 # ── Google Drive API (Dienstkonto) ───────────────────────────────────────────
 
 class DriveSource:
-    def __init__(self, key_file: str, folder_id: str, folder_name: str, deleted_folder_name: str):
+    def __init__(self, key_file: str, folder_id: str, folder_name: str, deleted_folder_name: str,
+                 images_folder_name: str):
         self.key_file = key_file
         self.folder_id = folder_id
         self.folder_name = folder_name
         self.deleted_folder_name = deleted_folder_name
+        self.images_folder_name = images_folder_name
         self._service = None
 
     @property
@@ -189,11 +214,11 @@ class DriveSource:
             raise BikeTrackerSourceError("Datei gehört nicht zum BikeTracker-Ordner.")
         return meta
 
-    def _get_deleted_folder_id(self) -> str:
+    def _get_subfolder_id(self, subfolder_name: str, create: bool) -> str:
         folder_id = self._resolve_folder_id()
         service = self._get_service()
 
-        escaped_name = self.deleted_folder_name.replace("\\", "\\\\").replace("'", "\\'")
+        escaped_name = subfolder_name.replace("\\", "\\\\").replace("'", "\\'")
         result = self._execute(service.files().list(
             q=f"'{folder_id}' in parents and name = '{escaped_name}' "
               f"and mimeType = '{DRIVE_FOLDER_MIME}' and trashed = false",
@@ -204,21 +229,42 @@ class DriveSource:
         folders = result.get("files", [])
         if folders:
             return folders[0]["id"]
+        if not create:
+            raise BikeTrackerSourceError(f"Unterordner '{subfolder_name}' im Ordner '{self.folder_name}' nicht gefunden.")
 
         created = self._execute(service.files().create(
-            body={"name": self.deleted_folder_name, "mimeType": DRIVE_FOLDER_MIME, "parents": [folder_id]},
+            body={"name": subfolder_name, "mimeType": DRIVE_FOLDER_MIME, "parents": [folder_id]},
             fields="id",
             supportsAllDrives=True,
         ))
         return created["id"]
 
-    def download(self, file_id: str, target_path: str) -> str:
+    def _get_deleted_folder_id(self) -> str:
+        return self._get_subfolder_id(self.deleted_folder_name, create=True)
+
+    def _load_media_file_ids(self) -> None:
+        images_folder_id = self._get_subfolder_id(self.images_folder_name, create=False)
+        page_token = None
+        while True:
+            result = self._execute(self._get_service().files().list(
+                q=f"'{images_folder_id}' in parents and trashed = false and mimeType != '{DRIVE_FOLDER_MIME}'",
+                pageSize=1000,
+                pageToken=page_token,
+                fields="nextPageToken, files(id, name)",
+                supportsAllDrives=True,
+                includeItemsFromAllDrives=True,
+            ))
+            for f in result.get("files", []):
+                _drive_media_file_ids[f["name"]] = f["id"]
+            page_token = result.get("nextPageToken")
+            if not page_token:
+                break
+
+    def _download_bytes(self, file_id: str) -> bytes:
         from googleapiclient.errors import HttpError
         from googleapiclient.http import MediaIoBaseDownload
 
         service = self._get_service()
-        meta = self._get_file_meta(file_id)
-
         buffer = io.BytesIO()
         downloader = MediaIoBaseDownload(buffer, service.files().get_media(fileId=file_id, supportsAllDrives=True))
         done = False
@@ -227,11 +273,26 @@ class DriveSource:
                 _, done = downloader.next_chunk()
         except HttpError as exc:
             raise BikeTrackerSourceError(f"Download fehlgeschlagen ({exc.status_code}): {exc.reason}") from exc
+        return buffer.getvalue()
+
+    def download(self, file_id: str, target_path: str) -> str:
+        meta = self._get_file_meta(file_id)
+        data = self._download_bytes(file_id)
 
         with open(target_path, "wb") as fh:
-            fh.write(buffer.getvalue())
+            fh.write(data)
 
         return meta["name"]
+
+    def read_media(self, filename: str) -> bytes:
+        _check_media_filename(filename)
+        if filename not in _drive_media_file_ids:
+            # Unbekannter Name: Liste des Bilder-Ordners neu laden (z. B. neu hinzugekommene Datei)
+            self._load_media_file_ids()
+        file_id = _drive_media_file_ids.get(filename)
+        if not file_id:
+            raise BikeTrackerSourceError("Datei nicht gefunden.")
+        return self._download_bytes(file_id)
 
     def delete(self, file_id: str) -> str:
         meta = self._get_file_meta(file_id)
@@ -253,5 +314,10 @@ def get_source():
             folder_id=config["BIKETRACKER_DRIVE_FOLDER_ID"],
             folder_name=config["BIKETRACKER_DRIVE_FOLDER_NAME"],
             deleted_folder_name=config["BIKETRACKER_DELETED_FOLDER_NAME"],
+            images_folder_name=config["BIKETRACKER_IMAGES_FOLDER_NAME"],
         )
-    return LocalSource(config["BIKETRACKER_DIR"], config["BIKETRACKER_DELETED_FOLDER_NAME"])
+    return LocalSource(
+        config["BIKETRACKER_DIR"],
+        config["BIKETRACKER_DELETED_FOLDER_NAME"],
+        config["BIKETRACKER_IMAGES_FOLDER_NAME"],
+    )

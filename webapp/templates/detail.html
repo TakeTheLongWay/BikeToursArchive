@@ -177,6 +177,14 @@
             cursor: default;
         }
 
+        /* Tourbilder-Button links neben den Blätter-Buttons, breiter wegen der Beschriftung */
+        .tourNavButton.tourMediaButton {
+            width: auto;
+            padding: 0 10px;
+            margin-right: 5px;
+            font-weight: 600;
+        }
+
         #tourActionsBox {
             flex: 0 0 auto;
             box-sizing: border-box;
@@ -305,6 +313,11 @@
     </h1>
 
         <div id="tourNavButtons">
+            {% if tour.has_media %}
+                <a class="tourNavButton tourMediaButton" href="{{ url_for('pages.tour_media', tour_id=tour.id) }}" title="Bilder zur Tour anzeigen">Tourbilder</a>
+            {% else %}
+                <span class="tourNavButton tourMediaButton disabled" title="Keine Bilder zur Tour">Tourbilder</span>
+            {% endif %}
             {% if tour.prev_id %}
                 <a class="tourNavButton" href="{{ url_for('pages.tour_detail', tour_id=tour.prev_id) }}" title="Ältere Tour">&#9664;</a>
             {% else %}

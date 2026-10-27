@@ -1,6 +1,9 @@
-from flask import Blueprint, current_app, render_template, request, send_from_directory
+import io
+import mimetypes
+from flask import Blueprint, current_app, render_template, request, send_file, send_from_directory
 from datetime import datetime
 from ..db.database import mysql_connection_wrapper
+from ..services.biketracker_source import BikeTrackerSourceError, get_source
 from ..services.track_files import load_track_data, track_extension
 from ..utils import build_gpx_path, format_date_display, format_duration_hm
 
@@ -134,6 +137,83 @@ def vendor_static(filename):
     return send_from_directory(current_app.config["VENDOR_STATIC_DIR"], filename)
 
 
+VIDEO_EXTENSIONS = (".mp4", ".mov", ".webm")
+
+
+def _tour_media_filenames(media_value):
+    # activities.media aus dem Strava-Export: "media/a.jpg|media/b.mp4"; gespeichert wird
+    # in der Tabelle media nur der Dateiname ohne "media/"
+    filenames = []
+    for part in (media_value or "").split("|"):
+        filename = part.strip().rsplit("/", 1)[-1]
+        if filename:
+            filenames.append(filename)
+    return filenames
+
+
+def _load_tour_media(cursor, media_value):
+    filenames = _tour_media_filenames(media_value)
+    if not filenames:
+        return []
+
+    placeholders = ", ".join(["%s"] * len(filenames))
+    cursor.execute(f"SELECT filename, caption FROM media WHERE filename IN ({placeholders})", filenames)
+    captions = {r["filename"]: r["caption"] for r in cursor.fetchall()}
+
+    # Reihenfolge wie in activities.media
+    return [
+        {
+            "filename": filename,
+            "caption": captions.get(filename) or "",
+            "is_video": filename.lower().endswith(VIDEO_EXTENSIONS),
+        }
+        for filename in filenames
+    ]
+
+
+@pages_bp.route("/tour-media/<path:filename>")
+def tour_media_file(filename):
+    # Bild/Video aus dem BikeTracker-Unterordner images (Drive-API oder lokal, je nach BIKETRACKER_SOURCE)
+    try:
+        data = get_source().read_media(filename)
+    except BikeTrackerSourceError as exc:
+        current_app.logger.error("Tourbild %s nicht ladbar: %s", filename, exc)
+        return str(exc), 404
+
+    # conditional=True erlaubt Range-Anfragen (Spulen in Videos); die Dateien ändern sich nicht,
+    # daher darf der Browser sie lange zwischenspeichern
+    return send_file(
+        io.BytesIO(data),
+        mimetype=mimetypes.guess_type(filename)[0] or "application/octet-stream",
+        download_name=filename,
+        conditional=True,
+        max_age=30 * 24 * 3600,
+    )
+
+
+@pages_bp.route("/tour/<int:tour_id>/bilder", methods=["GET"])
+@mysql_connection_wrapper
+def tour_media(cursor, tour_id):
+    cursor.execute(
+        "SELECT activity_id, activity_name, activity_date, media FROM activities WHERE activity_id = %s",
+        (tour_id,),
+    )
+    row = cursor.fetchone()
+
+    if not row:
+        return "Tour nicht gefunden", 404
+
+    return render_template(
+        "tour_media.html",
+        tour={
+            "id": row["activity_id"],
+            "name": row["activity_name"],
+            "date_display": format_date_display(row["activity_date"]),
+        },
+        media=_load_tour_media(cursor, row["media"]),
+    )
+
+
 @pages_bp.route("/tour/<int:tour_id>", methods=["GET"])
 @mysql_connection_wrapper
 def tour_detail(cursor, tour_id):
@@ -212,6 +292,7 @@ def tour_detail(cursor, tour_id):
         "file_format": track_extension(row["filename"]).lstrip(".").upper() or "GPX",
         "prev_id": prev_row["activity_id"] if prev_row else None,
         "next_id": next_row["activity_id"] if next_row else None,
+        "has_media": bool(_tour_media_filenames(row.get("media"))),
         "coords": coords, # Coords direkt ins Tour-Objekt für das Template
     }
 

@@ -26,7 +26,7 @@ BIKETRACKER_DRIVE_FOLDER_ID = ""
 BIKETRACKER_MAX_FILES = 10
 # Unterordner, in den "Löschen" auf der BikeTracker-Seite die Dateien verschiebt
 BIKETRACKER_DELETED_FOLDER_NAME = "Gelöscht"
-# Unterordner für Bilder
+# Unterordner mit den Tourbildern/-videos (Tabelle media) für die Tourbilder-Seite
 BIKETRACKER_IMAGES_FOLDER_NAME = "images"
 
 GOAL_UI_TO_DB_KEY = {
