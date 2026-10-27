@@ -12,11 +12,19 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <style>
+        /* Breite der linken Spalte und Abstand zur Karte; die Überschrift wird um beides
+           eingerückt, damit sie bündig mit der Kartenbox beginnt */
+        :root {
+            --tour-sidebar-width: 250px;
+            --tour-column-gap: 5px;
+        }
+
         .tour-title {
             display: flex;
             align-items: baseline;
             gap: 12px;
             flex-wrap: wrap;
+            margin-left: calc(var(--tour-sidebar-width) + var(--tour-column-gap));
         }
 
         #tourNameValue {
@@ -53,12 +61,12 @@
             flex: 1 1 auto;
             min-height: 0;
             display: flex;
-            gap: 5px;
+            gap: var(--tour-column-gap);
             margin-top: 5px;
         }
 
         #tourSidebar {
-            flex: 0 0 250px;
+            flex: 0 0 var(--tour-sidebar-width);
             min-height: 0;
             display: flex;
             flex-direction: column;
@@ -126,8 +134,10 @@
             font-weight: 600;
         }
 
+        /* Blätter-Buttons rechtsbündig über der Werteliste */
         #tourNavButtons {
             display: flex;
+            justify-content: flex-end;
             gap: 5px;
         }
 
@@ -295,17 +305,6 @@
             {% endif %}
         </div>
 
-        <div id="tourActionsBox">
-            <label for="tourBikeSelect">Bike</label>
-            <select id="tourBikeSelect" data-tour-id="{{ tour.id }}">
-                <option value="" {% if not selected_bike_id %}selected{% endif %}>no Bike</option>
-                {% for bike in bikes %}
-                    <option value="{{ bike.id }}" {% if selected_bike_id == bike.id %}selected{% endif %}>{{ bike.name }}</option>
-                {% endfor %}
-            </select>
-            <a id="btnGpxDownload" href="/api/tours/{{ tour.id }}/gpx" download title="{{ tour.file_format }} herunterladen">⬇ {{ tour.file_format }}</a>
-        </div>
-
         <div id="tourStatsBox">
             <div class="tour-stat">
                 <span class="tour-stat-label">Datum</span>
@@ -395,6 +394,17 @@
             {% endif %}
             </div>
             {% endif %}
+        </div>
+
+        <div id="tourActionsBox">
+            <label for="tourBikeSelect">Bike</label>
+            <select id="tourBikeSelect" data-tour-id="{{ tour.id }}">
+                <option value="" {% if not selected_bike_id %}selected{% endif %}>no Bike</option>
+                {% for bike in bikes %}
+                    <option value="{{ bike.id }}" {% if selected_bike_id == bike.id %}selected{% endif %}>{{ bike.name }}</option>
+                {% endfor %}
+            </select>
+            <a id="btnGpxDownload" href="/api/tours/{{ tour.id }}/gpx" download title="{{ tour.file_format }} herunterladen">⬇ {{ tour.file_format }}</a>
         </div>
         </div>
 
