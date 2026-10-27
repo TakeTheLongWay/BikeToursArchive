@@ -62,6 +62,25 @@ def _ensure_biketracker_imports_table(cursor):
     print("Tabelle biketracker_imports angelegt.")
 
 
+def _ensure_media_table(cursor):
+    cursor.execute("SHOW TABLES LIKE 'media'")
+    if cursor.fetchone():
+        return
+
+    # Bilder/Videos aus dem Strava-Export mit Bildunterschrift; siehe Create_Table_Media.sql
+    cursor.execute(
+        """
+        CREATE TABLE `media` (
+          `filename` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+          `caption` text COLLATE utf8mb4_unicode_ci,
+          `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (`filename`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        """
+    )
+    print("Tabelle media angelegt.")
+
+
 def _ensure_temperature_columns(cursor):
     # Min./Max.-Temperatur aus den GPX-Extensions (bt:tempMin / bt:tempMax)
     for column in ("temp_min_c", "temp_max_c"):
@@ -147,6 +166,7 @@ def ensure_database():
 
         _ensure_tour_names_table(cursor)
         _ensure_biketracker_imports_table(cursor)
+        _ensure_media_table(cursor)
         _ensure_temperature_columns(cursor)
         _ensure_tcx_columns(cursor)
         _ensure_default_bike_trigger(cursor)
