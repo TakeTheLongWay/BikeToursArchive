@@ -6,7 +6,14 @@ from flask import Blueprint, current_app, jsonify, render_template, request
 
 from ..db.database import get_db_connection
 from ..services.biketracker_source import BikeTrackerSourceError, get_source
-from ..services.importer import DuplicateActivityError, process_track_file
+from ..services.importer import (
+    MERGE_MODES,
+    DuplicateActivityError,
+    MatchDecisionRequired,
+    merge_or_import_track_file,
+    process_track_file,
+)
+from ..services.track_files import track_extension
 
 biketracker_bp = Blueprint("biketracker", __name__)
 
@@ -96,25 +103,58 @@ def biketracker():
 def biketracker_import():
     payload = request.get_json(silent=True) or {}
     file_ids = payload.get("files") or []
+    # Entscheidung des Benutzers je TCX-Datei mit vorhandener Tour: {file_id: "merge" | "replace"}
+    modes = payload.get("modes") or {}
     if not file_ids:
         return jsonify({"ok": False, "error": "Keine Dateien ausgewählt."}), 400
+    if any(mode not in MERGE_MODES for mode in modes.values()):
+        return jsonify({"ok": False, "error": "Ungültiger Abgleich-Modus."}), 400
 
     source = get_source()
     upload_tmp_dir = current_app.config["UPLOAD_TMP_DIR"]
     imported_ids = []
+    merged = []
+    pending = []
     duplicates = []
     errors = []
 
     for file_id in file_ids:
-        # Kopie importieren, da process_track_file die Quelldatei entfernt;
+        # Kopie importieren, da der Import die Quelldatei entfernt;
         # das Format (GPX/TCX) ergibt sich aus dem Originaldateinamen
         tmp_path = os.path.join(upload_tmp_dir, f"biketracker_{uuid.uuid4().hex}.tmp")
         filename = file_id
         activity_id = None
         try:
             filename = source.download(file_id, tmp_path)
-            activity_id = process_track_file(tmp_path, filename)
-            imported_ids.append(activity_id)
+            if track_extension(filename) == ".tcx":
+                # TCX ergänzt bzw. ersetzt eine vorhandene Tour derselben Fahrt, sonst normaler Import
+                result = merge_or_import_track_file(tmp_path, filename, modes.get(file_id))
+                activity_id = result["activity_id"]
+                if result["merged"]:
+                    merged.append({
+                        "filename": filename,
+                        "activity_id": activity_id,
+                        "activity_name": result["activity_name"],
+                        "mode": result["mode"],
+                        "updated_fields": result["updated_fields"],
+                    })
+                else:
+                    imported_ids.append(activity_id)
+            else:
+                activity_id = process_track_file(tmp_path, filename)
+                imported_ids.append(activity_id)
+        except MatchDecisionRequired as exc:
+            # Noch nichts geändert: Seite fragt nach (ergänzen oder ersetzen) und sendet die Datei erneut
+            activity = exc.activity
+            pending.append({
+                "file_id": file_id,
+                "filename": filename,
+                "activity_id": activity["activity_id"],
+                "activity_name": activity["activity_name"],
+                "activity_date": activity["activity_date"].strftime("%d.%m.%Y %H:%M"),
+                "distance_km": float(activity["distance_km"]) if activity["distance_km"] is not None else None,
+            })
+            os.remove(tmp_path)
         except DuplicateActivityError as exc:
             # Tour ist schon vorhanden: Datei ebenfalls als importiert merken
             activity_id = exc.activity_id
@@ -137,6 +177,8 @@ def biketracker_import():
             "ok": True,
             "imported_count": len(imported_ids),
             "imported_ids": imported_ids,
+            "merged": merged,
+            "pending": pending,
             "duplicates": duplicates,
             "errors": errors,
         }

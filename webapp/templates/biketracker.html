@@ -231,8 +231,47 @@
 
 </div>
 
+<div id="tcxMergeModal" class="confirm-modal-backdrop" hidden>
+    <div
+        class="confirm-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="tcxMergeTitle"
+        aria-describedby="tcxMergeText"
+    >
+        <h3 id="tcxMergeTitle">Tour bereits vorhanden</h3>
+        <p id="tcxMergeText"></p>
+        <div class="confirm-modal-actions">
+            <button id="tcxMergeSkip" type="button" class="confirm-modal-secondary">Überspringen</button>
+            <button id="tcxMergeNo" type="button">Nein</button>
+            <button id="tcxMergeYes" type="button">Ja</button>
+        </div>
+    </div>
+</div>
+
 <script>
     const dashboardUrl = "{{ url_for('pages.index') }}";
+
+    // Anzeigenamen der Felder, die beim TCX-Abgleich in einer vorhandenen Tour ergänzt wurden
+    const fieldLabels = {
+        activity_date: "Startzeit",
+        elapsed_time_s: "Dauer",
+        distance_km: "Distanz",
+        elevation_gain_m: "Aufstieg",
+        min_elevation_m: "Min. Höhe",
+        max_elevation_m: "Max. Höhe",
+        avg_watts: "Ø Leistung",
+        max_watts: "Max. Leistung",
+        calories: "Kalorien",
+        moving_time_s: "Fahrzeit",
+        max_speed_kmh: "Max. Speed",
+        avg_cadence_rpm: "Ø Trittfrequenz",
+        max_cadence_rpm: "Max. Trittfrequenz",
+        avg_heart_rate_bpm: "Ø Puls",
+        max_heart_rate_bpm: "Max. Puls",
+        device_name: "Gerät",
+        filename: "Tourdatei",
+    };
     const checkAll = document.getElementById("checkAll");
     const checks = document.querySelectorAll(".file-check");
     const btnImport = document.getElementById("btnTrackerImport");
@@ -288,6 +327,56 @@
         }
     }));
 
+    // Rückfrage für eine TCX-Datei mit vorhandener Tour: "replace" (Ja), "merge" (Nein) oder null (überspringen)
+    const mergeModal = document.getElementById("tcxMergeModal");
+    const mergeText = document.getElementById("tcxMergeText");
+
+    function askMergeMode(item) {
+        const date = item.activity_date;
+        const km = item.distance_km != null ? `, ${item.distance_km.toFixed(1).replace(".", ",")} km` : "";
+        mergeText.innerHTML = "";
+        mergeText.append(
+            `Zur Datei „${item.filename}“ gibt es bereits die Tour „${item.activity_name}“ (${date}${km}).`,
+            document.createElement("br"),
+            document.createElement("br"),
+            "Sollen die vorhandenen Daten durch die TCX-Daten ersetzt werden?",
+            document.createElement("br"),
+            "Ja = komplett ersetzen, Nein = nur fehlende Werte ergänzen."
+        );
+        mergeModal.hidden = false;
+        document.getElementById("tcxMergeYes").focus();
+
+        return new Promise(resolve => {
+            function finish(mode) {
+                mergeModal.hidden = true;
+                mergeModal.onclick = null;
+                document.removeEventListener("keydown", onKey);
+                resolve(mode);
+            }
+            function onKey(event) {
+                if (event.key === "Escape") finish(null);
+            }
+            document.getElementById("tcxMergeYes").onclick = () => finish("replace");
+            document.getElementById("tcxMergeNo").onclick = () => finish("merge");
+            document.getElementById("tcxMergeSkip").onclick = () => finish(null);
+            mergeModal.onclick = event => { if (event.target === mergeModal) finish(null); };
+            document.addEventListener("keydown", onKey);
+        });
+    }
+
+    async function postImport(files, modes) {
+        const resp = await fetch("{{ url_for('biketracker.biketracker_import') }}", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ files, modes }),
+        });
+        const data = await resp.json();
+        if (!resp.ok || !data.ok) {
+            throw new Error(data?.error || "Import fehlgeschlagen.");
+        }
+        return data;
+    }
+
     btnImport.addEventListener("click", async () => {
         const selected = [...checks].filter(c => c.checked).map(c => c.value);
         if (selected.length === 0) return;
@@ -297,22 +386,49 @@
         hint.textContent = "Wird importiert...";
 
         try {
-            const resp = await fetch("{{ url_for('biketracker.biketracker_import') }}", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ files: selected }),
-            });
-            const data = await resp.json();
-
-            if (!resp.ok || !data.ok) {
-                alert(data?.error || "Import fehlgeschlagen.");
-                return;
-            }
-
+            const data = await postImport(selected, {});
+            let importedCount = data.imported_count;
+            const merged = data.merged || [];
             const duplicates = data.duplicates || [];
             const errors = data.errors || [];
-            if (duplicates.length > 0 || errors.length > 0) {
-                let msg = `${data.imported_count} Tour(en) importiert.`;
+            const skipped = [];
+
+            // TCX-Dateien mit vorhandener Tour: je Datei nachfragen und dann erneut senden
+            const modes = {};
+            for (const item of data.pending || []) {
+                hint.textContent = `Rückfrage zu ${item.filename}...`;
+                const mode = await askMergeMode(item);
+                if (mode) {
+                    modes[item.file_id] = mode;
+                } else {
+                    skipped.push(item);
+                }
+            }
+
+            if (Object.keys(modes).length > 0) {
+                hint.textContent = "Wird übernommen...";
+                const second = await postImport(Object.keys(modes), modes);
+                importedCount += second.imported_count;
+                merged.push(...(second.merged || []));
+                duplicates.push(...(second.duplicates || []));
+                errors.push(...(second.errors || []));
+            }
+
+            if (merged.length > 0 || duplicates.length > 0 || errors.length > 0 || skipped.length > 0) {
+                let msg = `${importedCount} Tour(en) importiert.`;
+                const describe = m => `${m.filename} → ${m.activity_name} (${m.updated_fields.map(f => fieldLabels[f] || f).join(", ")})`;
+                const replaced = merged.filter(m => m.mode === "replace");
+                const completed = merged.filter(m => m.mode !== "replace");
+                if (replaced.length > 0) {
+                    msg += "\n\nVorhandene Tour(en) durch TCX ersetzt:\n" + replaced.map(describe).join("\n");
+                }
+                if (completed.length > 0) {
+                    msg += "\n\nVorhandene Tour(en) ergänzt:\n" + completed.map(describe).join("\n");
+                }
+                if (skipped.length > 0) {
+                    msg += "\n\nÜbersprungen (nicht übernommen):\n"
+                        + skipped.map(s => `${s.filename} → ${s.activity_name}`).join("\n");
+                }
                 if (duplicates.length > 0) {
                     msg += "\n\nBereits vorhanden (übersprungen):\n"
                         + duplicates.map(d => `${d.filename} → ${d.activity_name}`).join("\n");
@@ -325,7 +441,7 @@
 
             window.location.href = dashboardUrl;
         } catch (err) {
-            alert("Import fehlgeschlagen (Netzwerk/Server).");
+            alert(err instanceof TypeError ? "Import fehlgeschlagen (Netzwerk/Server)." : err.message);
         } finally {
             btnCancel.disabled = false;
             updateImportButton();

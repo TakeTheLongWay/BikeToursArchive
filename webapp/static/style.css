@@ -308,3 +308,57 @@ th {
     flex: 0 0 auto;
     max-width: none;
 }
+
+/* Bestätigungsdialog (Dashboard: Tour löschen, BikeTracker: TCX ergänzen/ersetzen) */
+.confirm-modal-backdrop[hidden] {
+    display: none;
+}
+
+.confirm-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.35);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+}
+
+.confirm-modal {
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+    padding: 24px;
+    min-width: 320px;
+    max-width: 420px;
+}
+
+.confirm-modal h3 {
+    margin: 0 0 12px 0;
+    color: #1f4e8c;
+}
+
+.confirm-modal p {
+    margin: 0 0 20px 0;
+}
+
+.confirm-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.confirm-modal-actions button {
+    min-width: 90px;
+}
+
+/* Nebenaktion im Dialog (z. B. Überspringen): dezent und links */
+.confirm-modal-actions .confirm-modal-secondary {
+    margin-right: auto;
+    background-color: #c5cfe0;
+    color: #1C3F75;
+}
+
+.confirm-modal-actions .confirm-modal-secondary:hover {
+    background-color: #b3bfd6;
+}
