@@ -19,12 +19,21 @@
             --tour-column-gap: 5px;
         }
 
+        /* Kopfzeile über der Karte: Überschrift links, Blätter-Buttons rechts bündig */
+        #tourHeader {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-left: calc(var(--tour-sidebar-width) + var(--tour-column-gap));
+        }
+
         .tour-title {
+            flex: 1 1 auto;
+            min-width: 0;
             display: flex;
             align-items: baseline;
             gap: 12px;
             flex-wrap: wrap;
-            margin-left: calc(var(--tour-sidebar-width) + var(--tour-column-gap));
         }
 
         #tourNameValue {
@@ -134,10 +143,9 @@
             font-weight: 600;
         }
 
-        /* Blätter-Buttons rechtsbündig über der Werteliste */
         #tourNavButtons {
+            flex: 0 0 auto;
             display: flex;
-            justify-content: flex-end;
             gap: 5px;
         }
 
@@ -270,6 +278,7 @@
 
 <div id="pageContent">
 
+    <div id="tourHeader">
     <h1 class="title tour-title">
         <span
             id="tourNameValue"
@@ -290,8 +299,6 @@
         <span id="tourNameHint" class="tour-title-hint">Doppelklick zum Umbenennen</span>
     </h1>
 
-    <div id="tourLayout">
-        <div id="tourSidebar">
         <div id="tourNavButtons">
             {% if tour.prev_id %}
                 <a class="tourNavButton" href="{{ url_for('pages.tour_detail', tour_id=tour.prev_id) }}" title="Ältere Tour">&#9664;</a>
@@ -304,7 +311,10 @@
                 <span class="tourNavButton disabled" title="Keine neuere Tour">&#9654;</span>
             {% endif %}
         </div>
+    </div>
 
+    <div id="tourLayout">
+        <div id="tourSidebar">
         <div id="tourStatsBox">
             <div class="tour-stat">
                 <span class="tour-stat-label">Datum</span>
