@@ -105,8 +105,13 @@ def load_gpx_data(file_path: str):
                 previous_elevation = None
 
                 for point in segment.points:
-                    elevation = point.elevation if point.elevation is not None else 0.0
+                    # Punkte ohne Höhe behalten (für den Track), Höhe aber leer lassen;
+                    # das Höhenprofil überspringt sie, der Aufstieg zählt nur echte Höhen
+                    elevation = point.elevation
                     coords.append([point.latitude, point.longitude, elevation])
+
+                    if elevation is None:
+                        continue
 
                     if previous_elevation is not None:
                         elevation_gain = elevation - previous_elevation

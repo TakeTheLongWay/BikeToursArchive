@@ -48,76 +48,86 @@
             color: #999;
         }
 
-        /* Kopfzeile wie Dashboard: Werte links, Bike/Download rechts */
-        #tourTopRow {
+        /* Zwei Spalten: links Blättern, Bike/Download und Werteliste, rechts Karte mit Höhenprofil */
+        #tourLayout {
+            flex: 1 1 auto;
+            min-height: 0;
             display: flex;
             gap: 5px;
-            margin-bottom: 5px;
-            flex-wrap: wrap;
-            align-items: stretch;
+            margin-top: 5px;
         }
 
-        /* Werte brechen innerhalb der Box um, die Bike/Download-Spalte bleibt rechts */
-        #tourStatsBox {
-            display: flex;
-            gap: 5px;
-            flex: 1 1 0;
-            min-width: 0;
-            flex-wrap: wrap;
-            align-content: flex-start;
-        }
-
-        /* Kompakte Wertboxen, damit auch die TCX-Zusatzwerte in eine Zeile passen */
-        #tourStatsBox .goalFrame {
-            flex: 1 1 105px;
-            max-width: 170px;
-            padding: 6px 8px;
-            border-radius: 10px;
-            border-left-width: 3px;
+        #tourSidebar {
+            flex: 0 0 250px;
+            min-height: 0;
             display: flex;
             flex-direction: column;
-            justify-content: center;
+            gap: 5px;
         }
 
-        #tourStatsBox .goalFrameWide {
-            flex-basis: 150px;
-            max-width: 240px;
+        #tourMain {
+            flex: 1 1 auto;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
         }
 
-        #tourStatsBox .goalFrameTitle {
-            font-size: 12px;
-            margin-bottom: 2px;
+        /* Werteliste: eine Zeile je Wert, Bezeichnung links, Wert rechts */
+        #tourStatsBox {
+            flex: 0 1 auto;
+            min-height: 0;
+            overflow-y: auto;
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            border-left: 4px solid #4B77BE;
+            padding: 4px 12px;
         }
 
-        #tourStatsBox .goalFrameValue {
-            font-size: 15px;
-            margin-bottom: 0;
+        .tour-stat {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            gap: 10px;
+            padding: 5px 0;
+            border-bottom: 1px solid #eef1f7;
+            font-size: 13px;
+        }
+
+        .tour-stat:last-child {
+            border-bottom: none;
+        }
+
+        .tour-stat-label {
+            color: #666;
+            font-weight: 600;
             white-space: nowrap;
         }
 
-        #tourStatsBox .goalFrameUnit {
+        .tour-stat-value {
+            color: #1C3F75;
+            font-weight: 700;
+            text-align: right;
+        }
+
+        .tour-stat-unit {
             font-size: 11px;
             font-weight: 600;
             color: #888;
         }
 
-        #tourStatsBox .goalFrameText {
-            font-size: 12px;
-            font-weight: 600;
-            color: #1C3F75;
+        /* Zusatzwerte aus TCX-Dateien durch eine Linie abgesetzt */
+        .tour-stat-group {
+            border-top: 2px solid #dde4f0;
         }
 
-        /* Rechte Spalte: Blätter-Buttons über der Bike/Download-Box */
-        #tourSideColumn {
-            flex: 0 0 var(--dashboard-side-width);
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
+        .tour-stat-device .tour-stat-value {
+            font-size: 12px;
+            font-weight: 600;
         }
 
         #tourNavButtons {
             display: flex;
-            justify-content: flex-end;
             gap: 5px;
         }
 
@@ -145,15 +155,20 @@
         }
 
         #tourActionsBox {
-            flex: 1 1 auto;
+            flex: 0 0 auto;
             box-sizing: border-box;
             display: flex;
+            flex-wrap: wrap;
             align-items: center;
-            gap: 10px;
+            gap: 8px;
             background: #fff;
-            padding: 10px 15px;
+            padding: 10px 12px;
             border-radius: 12px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        #tourActionsBox label {
+            flex: 0 0 auto;
         }
 
         #tourActionsBox label {
@@ -169,7 +184,7 @@
 
         #btnGpxDownload {
             display: block;
-            flex: 0 0 auto;
+            flex: 1 1 100%;
             white-space: nowrap;
             text-align: center;
             padding: 8px 12px;
@@ -186,9 +201,9 @@
             background: #3a5f9e;
         }
 
-        /* Seite füllt genau den Bildschirm: die Karte nimmt den Platz, der neben
-           Kopfzeile und Höhenprofil übrig bleibt, so sind Track und Höhenlinie
-           gleichzeitig sichtbar. Bei sehr kleinem Fenster wird gescrollt. */
+        /* Seite füllt genau den Bildschirm: die Karte nimmt rechts den Platz, der über
+           dem Höhenprofil übrig bleibt, so sind Track und Höhenlinie gleichzeitig
+           sichtbar. Bei sehr kleinem Fenster wird gescrollt. */
         #pageContent {
             height: 100vh;
             box-sizing: border-box;
@@ -265,82 +280,8 @@
         <span id="tourNameHint" class="tour-title-hint">Doppelklick zum Umbenennen</span>
     </h1>
 
-    <div id="tourTopRow">
-        <div id="tourStatsBox">
-            <div class="goalFrame">
-                <div class="goalFrameTitle">Distanz</div>
-                <div class="goalFrameValue">{{ (tour.distance_km | float) | round(0, 'common') | int }} km</div>
-            </div>
-            <div class="goalFrame">
-                <div class="goalFrameTitle">Dauer</div>
-                <div class="goalFrameValue">{{ tour.duration_hm }} h</div>
-            </div>
-            <div class="goalFrame">
-                <div class="goalFrameTitle">Aufstieg</div>
-                <div class="goalFrameValue">{{ (tour.total_ascent_m | float) | round(0, 'common') | int }} hm</div>
-            </div>
-            <div class="goalFrame">
-                <div class="goalFrameTitle">Datum</div>
-                <div class="goalFrameValue">{{ tour.date_display }}</div>
-            </div>
-            <div class="goalFrame">
-                <div class="goalFrameTitle">Min.Temp: {{ "%.1f °C" | format(tour.temp_min_c | float) if tour.temp_min_c is not none else "n/a" }}</div>
-                <div class="goalFrameTitle">Max.Temp: {{ "%.1f °C" | format(tour.temp_max_c | float) if tour.temp_max_c is not none else "n/a" }}</div>
-            </div>
-            {# Zusatzwerte aus TCX-Dateien; Boxen nur anzeigen, wenn Werte vorhanden sind #}
-            {% if tour.moving_time_hm %}
-            <div class="goalFrame">
-                <div class="goalFrameTitle">Fahrzeit</div>
-                <div class="goalFrameValue">{{ tour.moving_time_hm }} h</div>
-            </div>
-            {% endif %}
-            {% if tour.max_speed_kmh is not none %}
-            <div class="goalFrame">
-                <div class="goalFrameTitle">Max. Speed</div>
-                <div class="goalFrameValue">{{ "%.1f" | format(tour.max_speed_kmh | float) }} km/h</div>
-            </div>
-            {% endif %}
-            {% if tour.avg_watts is not none or tour.max_watts is not none %}
-            <div class="goalFrame">
-                <div class="goalFrameTitle">Leistung</div>
-                <div class="goalFrameValue">
-                    {{ tour.avg_watts if tour.avg_watts is not none else "–" }}<span class="goalFrameUnit"> Ø</span>
-                    / {{ tour.max_watts if tour.max_watts is not none else "–" }}<span class="goalFrameUnit"> max W</span>
-                </div>
-            </div>
-            {% endif %}
-            {% if tour.avg_cadence_rpm is not none or tour.max_cadence_rpm is not none %}
-            <div class="goalFrame">
-                <div class="goalFrameTitle">Trittfrequenz</div>
-                <div class="goalFrameValue">
-                    {{ tour.avg_cadence_rpm if tour.avg_cadence_rpm is not none else "–" }}<span class="goalFrameUnit"> Ø</span>
-                    / {{ tour.max_cadence_rpm if tour.max_cadence_rpm is not none else "–" }}<span class="goalFrameUnit"> max U/min</span>
-                </div>
-            </div>
-            {% endif %}
-            {% if tour.calories %}
-            <div class="goalFrame">
-                <div class="goalFrameTitle">Kalorien</div>
-                <div class="goalFrameValue">{{ tour.calories }} kcal</div>
-            </div>
-            {% endif %}
-            {% if tour.min_elevation_m is not none and tour.max_elevation_m is not none %}
-            <div class="goalFrame">
-                <div class="goalFrameTitle">Höhe</div>
-                <div class="goalFrameValue">
-                    {{ (tour.min_elevation_m | float) | round | int }} – {{ (tour.max_elevation_m | float) | round | int }}<span class="goalFrameUnit"> m</span>
-                </div>
-            </div>
-            {% endif %}
-            {% if tour.device_name %}
-            <div class="goalFrame goalFrameWide">
-                <div class="goalFrameTitle">Gerät</div>
-                <div class="goalFrameText">{{ tour.device_name }}</div>
-            </div>
-            {% endif %}
-        </div>
-
-        <div id="tourSideColumn">
+    <div id="tourLayout">
+        <div id="tourSidebar">
         <div id="tourNavButtons">
             {% if tour.prev_id %}
                 <a class="tourNavButton" href="{{ url_for('pages.tour_detail', tour_id=tour.prev_id) }}" title="Ältere Tour">&#9664;</a>
@@ -364,16 +305,109 @@
             </select>
             <a id="btnGpxDownload" href="/api/tours/{{ tour.id }}/gpx" download title="{{ tour.file_format }} herunterladen">⬇ {{ tour.file_format }}</a>
         </div>
+
+        <div id="tourStatsBox">
+            <div class="tour-stat">
+                <span class="tour-stat-label">Datum</span>
+                <span class="tour-stat-value">{{ tour.date_display }}</span>
+            </div>
+            <div class="tour-stat">
+                <span class="tour-stat-label">Distanz</span>
+                <span class="tour-stat-value">{{ (tour.distance_km | float) | round(0, 'common') | int }}<span class="tour-stat-unit"> km</span></span>
+            </div>
+            <div class="tour-stat">
+                <span class="tour-stat-label">Dauer</span>
+                <span class="tour-stat-value">{{ tour.duration_hm }}<span class="tour-stat-unit"> h</span></span>
+            </div>
+            <div class="tour-stat">
+                <span class="tour-stat-label">Aufstieg</span>
+                <span class="tour-stat-value">{{ (tour.total_ascent_m | float) | round(0, 'common') | int }}<span class="tour-stat-unit"> hm</span></span>
+            </div>
+            <div class="tour-stat">
+                <span class="tour-stat-label">Min. Temp.</span>
+                <span class="tour-stat-value">{{ "%.1f" | format(tour.temp_min_c | float) if tour.temp_min_c is not none else "n/a" }}{% if tour.temp_min_c is not none %}<span class="tour-stat-unit"> °C</span>{% endif %}</span>
+            </div>
+            <div class="tour-stat">
+                <span class="tour-stat-label">Max. Temp.</span>
+                <span class="tour-stat-value">{{ "%.1f" | format(tour.temp_max_c | float) if tour.temp_max_c is not none else "n/a" }}{% if tour.temp_max_c is not none %}<span class="tour-stat-unit"> °C</span>{% endif %}</span>
+            </div>
+
+            {# Zusatzwerte aus TCX-Dateien; Zeilen nur anzeigen, wenn Werte vorhanden sind #}
+            {% set has_tcx_values = tour.moving_time_hm or tour.max_speed_kmh is not none
+                or tour.avg_watts is not none or tour.max_watts is not none
+                or tour.avg_cadence_rpm is not none or tour.max_cadence_rpm is not none
+                or tour.calories or tour.min_elevation_m is not none or tour.device_name %}
+            {% if has_tcx_values %}
+            <div class="tour-stat-group">
+            {% if tour.moving_time_hm %}
+            <div class="tour-stat">
+                <span class="tour-stat-label">Fahrzeit</span>
+                <span class="tour-stat-value">{{ tour.moving_time_hm }}<span class="tour-stat-unit"> h</span></span>
+            </div>
+            {% endif %}
+            {% if tour.max_speed_kmh is not none %}
+            <div class="tour-stat">
+                <span class="tour-stat-label">Max. Speed</span>
+                <span class="tour-stat-value">{{ "%.1f" | format(tour.max_speed_kmh | float) }}<span class="tour-stat-unit"> km/h</span></span>
+            </div>
+            {% endif %}
+            {% if tour.avg_watts is not none %}
+            <div class="tour-stat">
+                <span class="tour-stat-label">Ø Leistung</span>
+                <span class="tour-stat-value">{{ tour.avg_watts }}<span class="tour-stat-unit"> W</span></span>
+            </div>
+            {% endif %}
+            {% if tour.max_watts is not none %}
+            <div class="tour-stat">
+                <span class="tour-stat-label">Max. Leistung</span>
+                <span class="tour-stat-value">{{ tour.max_watts }}<span class="tour-stat-unit"> W</span></span>
+            </div>
+            {% endif %}
+            {% if tour.avg_cadence_rpm is not none %}
+            <div class="tour-stat">
+                <span class="tour-stat-label">Ø Trittfrequenz</span>
+                <span class="tour-stat-value">{{ tour.avg_cadence_rpm }}<span class="tour-stat-unit"> U/min</span></span>
+            </div>
+            {% endif %}
+            {% if tour.max_cadence_rpm is not none %}
+            <div class="tour-stat">
+                <span class="tour-stat-label">Max. Trittfrequenz</span>
+                <span class="tour-stat-value">{{ tour.max_cadence_rpm }}<span class="tour-stat-unit"> U/min</span></span>
+            </div>
+            {% endif %}
+            {% if tour.calories %}
+            <div class="tour-stat">
+                <span class="tour-stat-label">Kalorien</span>
+                <span class="tour-stat-value">{{ tour.calories }}<span class="tour-stat-unit"> kcal</span></span>
+            </div>
+            {% endif %}
+            {% if tour.min_elevation_m is not none and tour.max_elevation_m is not none %}
+            <div class="tour-stat">
+                <span class="tour-stat-label">Höhe</span>
+                <span class="tour-stat-value">{{ (tour.min_elevation_m | float) | round | int }} – {{ (tour.max_elevation_m | float) | round | int }}<span class="tour-stat-unit"> m</span></span>
+            </div>
+            {% endif %}
+            {% if tour.device_name %}
+            <div class="tour-stat tour-stat-device">
+                <span class="tour-stat-label">Gerät</span>
+                <span class="tour-stat-value">{{ tour.device_name }}</span>
+            </div>
+            {% endif %}
+            </div>
+            {% endif %}
         </div>
-    </div>
+        </div>
 
-    <div class="detail-card" id="mapCard">
-        <div id="map"></div>
-    </div>
+        <div id="tourMain">
+            <div class="detail-card" id="mapCard">
+                <div id="map"></div>
+            </div>
 
-    <div class="detail-card" id="elevationCard">
-        <div id="elevationChart">
-            <canvas id="myChart"></canvas>
+            <div class="detail-card" id="elevationCard">
+                <div id="elevationChart">
+                    <canvas id="myChart"></canvas>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -485,7 +519,9 @@
                         backgroundColor: "rgba(75, 119, 190, 0.2)",
                         fill: true,
                         borderWidth: 2,
-                        pointRadius: 0
+                        pointRadius: 0,
+                        // Punkte ohne Höhe (null) auslassen und die Linie darüber hinweg verbinden
+                        spanGaps: true
                     }]
                 },
                 options: {

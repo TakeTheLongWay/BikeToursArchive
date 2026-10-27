@@ -171,8 +171,8 @@ def load_tcx_data(file_path: str):
         for point in points:
             if point["lat"] is None or point["lon"] is None:
                 continue
-            elevation = point["altitude"] if point["altitude"] is not None else 0.0
-            coords.append([point["lat"], point["lon"], elevation])
+            # Fehlende Höhe bleibt leer, das Höhenprofil überspringt solche Punkte
+            coords.append([point["lat"], point["lon"], point["altitude"]])
 
         total_ascent_m = _positive_ascent(p["altitude"] for p in points if p["altitude"] is not None)
     except Exception:
