@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="utf-8">
+    <title>Tourbilder</title>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+    <style>
+        /* Seite füllt genau den Bildschirm, das Bild nimmt den Platz unter der Kopfzeile */
+        #pageContent {
+            height: 100vh;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Kopfzeile: Überschrift links, Zurück- und Blätter-Buttons rechts bündig */
+        #mediaHeader {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .media-title {
+            flex: 1 1 auto;
+            min-width: 0;
+            display: flex;
+            align-items: baseline;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .media-title-date {
+            font-size: 14px;
+            font-weight: 600;
+            color: #888;
+        }
+
+        #mediaNavButtons {
+            flex: 0 0 auto;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .mediaNavButton {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 26px;
+            padding: 0;
+            border: none;
+            background: #4B77BE;
+            color: #fff;
+            border-radius: 6px;
+            font-size: 12px;
+            text-decoration: none;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .mediaNavButton:hover {
+            background: #3a5f9e;
+        }
+
+        .mediaNavButton:disabled {
+            background: #c5cfe0;
+            cursor: default;
+        }
+
+        .mediaNavButton.mediaBackButton {
+            width: auto;
+            padding: 0 10px;
+            margin-right: 5px;
+            font-weight: 600;
+        }
+
+        #mediaCounter {
+            min-width: 4.5em;
+            text-align: center;
+            font-size: 13px;
+            font-weight: 600;
+            color: #666;
+        }
+
+        #mediaCard {
+            flex: 1 1 auto;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 5px;
+            background: #fff;
+            padding: 10px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            box-sizing: border-box;
+        }
+
+        #mediaStage {
+            flex: 1 1 auto;
+            min-height: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #f4f6fa;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        #mediaStage img,
+        #mediaStage video {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+
+        #mediaCaption {
+            flex: 0 0 auto;
+            min-height: 1.4em;
+            text-align: center;
+            font-size: 15px;
+            font-weight: 600;
+            color: #1C3F75;
+            white-space: pre-line;
+        }
+
+        #mediaCaption.media-caption-empty {
+            color: #aab5cc;
+            font-weight: 400;
+        }
+
+        /* Vorschauleiste unter der Bildunterschrift; bei vielen Medien horizontal scrollbar */
+        #mediaThumbs {
+            flex: 0 0 auto;
+            display: flex;
+            justify-content: center;
+            gap: 6px;
+            overflow-x: auto;
+            padding: 3px;
+        }
+
+        .media-thumb {
+            flex: 0 0 auto;
+            width: 72px;
+            height: 54px;
+            padding: 0;
+            border: none;
+            border-radius: 6px;
+            overflow: hidden;
+            background: #dde4f0;
+            color: #4B77BE;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            opacity: 0.6;
+            transition: opacity 0.2s, box-shadow 0.2s;
+        }
+
+        .media-thumb:hover {
+            background: #dde4f0;
+            opacity: 1;
+        }
+
+        .media-thumb.active {
+            opacity: 1;
+            box-shadow: 0 0 0 2px #4B77BE;
+        }
+
+        .media-thumb img {
+            display: block;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .media-empty,
+        .media-loading {
+            color: #888;
+        }
+
+        /* Video erst zeigen, wenn das erste Bild da ist; bis dahin steht der Ladehinweis */
+        #mediaStage video.media-pending {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+<div id="MainMenuDashboard">
+    <button id="btnDashboard" onclick="window.location.href='{{ url_for('pages.index') }}'">Dashboard</button>
+    <button id="btnBikeTracker" onclick="window.location.href='{{ url_for('biketracker.biketracker') }}'">BikeTracker</button>
+    <button id="btnEditGoals" onclick="window.location.href='{{ url_for('pages.mygoals') }}'">Ziele</button>
+    <button id="btnMyBikes" onclick="window.location.href='{{ url_for('pages.mybikes') }}'">Bikes</button>
+    <button id="btnSettings" onclick="window.location.href='{{ url_for('pages.appsettings') }}'">Settings</button>
+    <button id="btnKmStat" onclick="window.location.href='{{ url_for('pages.kmyear') }}'">km-Stat</button>
+    <button id="btnKmCurves" onclick="window.location.href='{{ url_for('pages.kmcurves') }}'">km-Kurven</button>
+</div>
+
+<div id="pageContent">
+
+    <div id="mediaHeader">
+        <h1 class="title media-title">
+            <span>{{ tour.name }}</span>
+            <span class="media-title-date">{{ tour.date_display }}</span>
+        </h1>
+
+        <div id="mediaNavButtons">
+            <a class="mediaNavButton mediaBackButton" href="{{ url_for('pages.tour_detail', tour_id=tour.id) }}" title="Zurück zur Tour">Zurück zur Tour</a>
+            {% if media %}
+                <button type="button" class="mediaNavButton" id="btnMediaPrev" title="Vorheriges Bild">&#9664;</button>
+                <span id="mediaCounter"></span>
+                <button type="button" class="mediaNavButton" id="btnMediaNext" title="Nächstes Bild">&#9654;</button>
+            {% endif %}
+        </div>
+    </div>
+
+    <div id="mediaCard">
+        {% if media %}
+            <div id="mediaStage"></div>
+            <div id="mediaCaption"></div>
+            {% if media | length > 1 %}
+                {# Vorschaubilder sind die Originalbilder (im Browser zwischengespeichert);
+                   Videos bekommen eine Kachel statt eines Vorschaubilds #}
+                <div id="mediaThumbs">
+                    {% for item in media %}
+                        <button type="button" class="media-thumb" data-index="{{ loop.index0 }}"
+                                title="{{ item.caption or ('Video' if item.is_video else 'Bild') }} ({{ loop.index }} / {{ media | length }})">
+                            {% if item.is_video %}
+                                &#9654; Video
+                            {% else %}
+                                <img src="{{ url_for('pages.tour_media_file', filename=item.filename) }}" alt="" loading="lazy">
+                            {% endif %}
+                        </button>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% else %}
+            <div id="mediaStage"><span class="media-empty">Zu dieser Tour gibt es keine Bilder.</span></div>
+        {% endif %}
+    </div>
+
+</div>
+
+{% if media %}
+<script>
+    const mediaItems = [
+        {% for item in media %}
+        {
+            url: {{ url_for('pages.tour_media_file', filename=item.filename) | tojson }},
+            caption: {{ item.caption | tojson }},
+            isVideo: {{ item.is_video | tojson }},
+        },
+        {% endfor %}
+    ];
+
+    const stage = document.getElementById("mediaStage");
+    const caption = document.getElementById("mediaCaption");
+    const counter = document.getElementById("mediaCounter");
+    const btnPrev = document.getElementById("btnMediaPrev");
+    const btnNext = document.getElementById("btnMediaNext");
+
+    // Beim Aufruf der Seite immer mit dem ersten Bild beginnen
+    let currentIndex = 0;
+
+    function showMedia(index) {
+        currentIndex = Math.max(0, Math.min(index, mediaItems.length - 1));
+        const item = mediaItems[currentIndex];
+
+        const element = document.createElement(item.isVideo ? "video" : "img");
+        if (item.isVideo) {
+            // Videos kommen komplett über die Drive-API und brauchen einige Sekunden
+            const loading = document.createElement("span");
+            loading.className = "media-loading";
+            loading.textContent = "Video wird geladen …";
+
+            element.controls = true;
+            element.preload = "auto";
+            element.classList.add("media-pending");
+            element.addEventListener("loadeddata", () => {
+                loading.remove();
+                element.classList.remove("media-pending");
+            }, { once: true });
+            element.addEventListener("error", () => {
+                loading.textContent = "Video konnte nicht geladen werden.";
+            }, { once: true });
+
+            stage.replaceChildren(loading, element);
+        } else {
+            element.alt = item.caption || "Tourbild";
+            stage.replaceChildren(element);
+        }
+        element.src = item.url;
+
+        caption.textContent = item.caption || "Kein Text zum Bild";
+        caption.classList.toggle("media-caption-empty", !item.caption);
+
+        counter.textContent = `${currentIndex + 1} / ${mediaItems.length}`;
+        btnPrev.disabled = currentIndex === 0;
+        btnNext.disabled = currentIndex === mediaItems.length - 1;
+
+        thumbs.forEach((thumb, thumbIndex) => thumb.classList.toggle("active", thumbIndex === currentIndex));
+        thumbs[currentIndex]?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    }
+
+    const thumbs = Array.from(document.querySelectorAll(".media-thumb"));
+    thumbs.forEach((thumb) => {
+        thumb.addEventListener("click", () => showMedia(Number(thumb.dataset.index)));
+    });
+
+    btnPrev.addEventListener("click", () => showMedia(currentIndex - 1));
+    btnNext.addEventListener("click", () => showMedia(currentIndex + 1));
+
+    // Blättern auch mit den Pfeiltasten
+    document.addEventListener("keydown", (event) => {
+        if (event.key === "ArrowLeft") {
+            showMedia(currentIndex - 1);
+        } else if (event.key === "ArrowRight") {
+            showMedia(currentIndex + 1);
+        }
+    });
+
+    showMedia(0);
+</script>
+{% endif %}
+
+</body>
+</html>
