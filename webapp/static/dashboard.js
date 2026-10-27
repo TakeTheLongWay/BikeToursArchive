@@ -2,6 +2,7 @@ const tourTableBody = document.getElementById("tourTableBody");
 const filterType = document.getElementById("filterType");
 const filterMonth = document.getElementById("filterMonth");
 const filterYear = document.getElementById("filterYear");
+const filterMedia = document.getElementById("filterMedia");
 
 const btnImport = document.getElementById("btnImport");
 const fileInput = document.getElementById("fileInput");
@@ -424,7 +425,13 @@ async function loadData() {
         const type = filterType ? filterType.value : "cycling";
         const month = filterMonth ? filterMonth.value : "";
         const year = filterYear ? filterYear.value : "";
+        const media = filterMedia ? filterMedia.value : "all";
         const allMonthsSelected = isAllMonthSelection(month);
+
+        // Bei "Touren mit Bildern" zeigt die Tabelle alle Touren mit Bildern, Monat/Jahr gelten nicht
+        const withMedia = media === "with";
+        if (filterMonth) filterMonth.disabled = withMedia;
+        if (filterYear) filterYear.disabled = withMedia;
 
         const respGoals = await fetch("/api/goals");
         const goalsData = await respGoals.json();
@@ -433,7 +440,7 @@ async function loadData() {
         const respStats = await fetch(`/api/stats?type=${encodeURIComponent(type)}&month=${encodeURIComponent(month)}&year=${encodeURIComponent(year)}`);
         const stats = await respStats.json();
 
-        const respTours = await fetch(`/api/tours?type=${encodeURIComponent(type)}&month=${encodeURIComponent(month)}&year=${encodeURIComponent(year)}`);
+        const respTours = await fetch(`/api/tours?type=${encodeURIComponent(type)}&month=${encodeURIComponent(month)}&year=${encodeURIComponent(year)}&media=${encodeURIComponent(media)}`);
         const tours = await respTours.json();
         const safeTours = Array.isArray(tours) ? tours : [];
 
@@ -662,7 +669,7 @@ document.addEventListener("keydown", (event) => {
     }
 });
 
-[filterType, filterMonth, filterYear].forEach((el) => {
+[filterType, filterMonth, filterYear, filterMedia].forEach((el) => {
     if (el) el.addEventListener("change", loadData);
 });
 

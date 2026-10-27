@@ -38,8 +38,11 @@ GOAL_UI_TO_DB_KEY = {
 
 VALID_GOAL_DB_KEYS = set(GOAL_UI_TO_DB_KEY.values())
 
+# Typ-Filter des Dashboards -> alle activity_type-Werte dieser Art (Strava-Export deutsch und
+# englisch, GPX-/TCX-Import); nicht aufgeführte Filterwerte gelten unverändert
 ACTIVITY_TYPE_ALIASES = {
-    "per pedes": "hiking",
+    "cycling": ("cycling", "Ride", "EBikeRide", "Radfahrt", "E-Bike-Radfahrt"),
+    "per pedes": ("hiking",),
 }
 
 MONTH_NAMES = (

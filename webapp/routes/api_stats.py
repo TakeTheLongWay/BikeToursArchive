@@ -4,7 +4,7 @@ from flask import Blueprint, current_app, jsonify, request
 
 from ..config import MONTH_NAMES
 from ..db.database import mysql_connection_wrapper
-from ..utils import get_db_type, is_all_month_selection, parse_month_value, parse_year_value
+from ..utils import activity_type_condition, is_all_month_selection, parse_month_value, parse_year_value
 
 stats_bp = Blueprint("stats", __name__)
 
@@ -13,8 +13,7 @@ stats_bp = Blueprint("stats", __name__)
 @mysql_connection_wrapper
 def api_stats(cursor):
     try:
-        ttype_filter = request.args.get("type")
-        db_type = get_db_type(ttype_filter)
+        type_sql, type_params = activity_type_condition(request.args.get("type"))
         month = request.args.get("month")
         year = request.args.get("year")
 
@@ -33,9 +32,8 @@ def api_stats(cursor):
                 sql_month += " AND activity_date <= %s"
                 params_month.append(today)
 
-            if db_type:
-                sql_month += " AND activity_type = %s"
-                params_month.append(db_type)
+            sql_month += type_sql
+            params_month.extend(type_params)
 
             cursor.execute(sql_month, params_month)
             row_month = cursor.fetchone()
@@ -47,9 +45,8 @@ def api_stats(cursor):
                 "FROM activities WHERE YEAR(activity_date) = %s AND MONTH(activity_date) = %s"
             )
             params_month = [year_i, month_i]
-            if db_type:
-                sql_month += " AND activity_type = %s"
-                params_month.append(db_type)
+            sql_month += type_sql
+            params_month.extend(type_params)
 
             cursor.execute(sql_month, params_month)
             row_month = cursor.fetchone()
@@ -62,9 +59,8 @@ def api_stats(cursor):
             "FROM activities WHERE YEAR(activity_date) = %s"
         )
         params_year = [year_i]
-        if db_type:
-            sql_year += " AND activity_type = %s"
-            params_year.append(db_type)
+        sql_year += type_sql
+        params_year.extend(type_params)
         cursor.execute(sql_year, params_year)
         row_year = cursor.fetchone()
 
@@ -73,9 +69,8 @@ def api_stats(cursor):
             "FROM activities WHERE YEAR(activity_date) = %s AND activity_date <= %s"
         )
         params_ytd = [today.year, today]
-        if db_type:
-            sql_ytd += " AND activity_type = %s"
-            params_ytd.append(db_type)
+        sql_ytd += type_sql
+        params_ytd.extend(type_params)
         cursor.execute(sql_ytd, params_ytd)
         row_ytd = cursor.fetchone()
 
@@ -85,9 +80,8 @@ def api_stats(cursor):
             "FROM activities WHERE activity_date >= %s"
         )
         params_week = [start_of_week]
-        if db_type:
-            sql_week += " AND activity_type = %s"
-            params_week.append(db_type)
+        sql_week += type_sql
+        params_week.extend(type_params)
         cursor.execute(sql_week, params_week)
         row_week = cursor.fetchone()
 

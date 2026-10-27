@@ -4,10 +4,19 @@ from datetime import date, datetime
 from ..config import ACTIVITY_TYPE_ALIASES
 
 
-def get_db_type(filter_type):
+def get_db_types(filter_type):
     if filter_type == "Alle" or not filter_type:
-        return None
-    return ACTIVITY_TYPE_ALIASES.get(filter_type, filter_type)
+        return ()
+    return ACTIVITY_TYPE_ALIASES.get(filter_type, (filter_type,))
+
+
+def activity_type_condition(filter_type, column="activity_type"):
+    """SQL-Bedingung (" AND ... IN (...)") und Parameter für den Typ-Filter; ohne Filter leer."""
+    db_types = get_db_types(filter_type)
+    if not db_types:
+        return "", []
+    placeholders = ", ".join(["%s"] * len(db_types))
+    return f" AND {column} IN ({placeholders})", list(db_types)
 
 
 def is_all_month_selection(month_value):

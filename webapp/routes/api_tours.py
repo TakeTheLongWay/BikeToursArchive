@@ -6,9 +6,9 @@ from flask import Blueprint, current_app, jsonify, request, send_file
 from ..db.database import mysql_connection_wrapper
 from ..services.track_files import MIME_TYPES, track_extension
 from ..utils import (
+    activity_type_condition,
     format_date_display,
     format_duration_hm,
-    get_db_type,
     is_all_month_selection,
     parse_year_value,
 )
@@ -20,10 +20,13 @@ tours_bp = Blueprint("tours", __name__)
 @mysql_connection_wrapper
 def api_tours(cursor):
     try:
-        ttype_filter = request.args.get("type")
-        db_type = get_db_type(ttype_filter)
+        type_sql, type_params = activity_type_condition(request.args.get("type"), "a.activity_type")
         month = request.args.get("month")
         year = request.args.get("year")
+        # "Touren mit Bildern": alle Touren mit Einträgen in activities.media, unabhängig von Monat/Jahr
+        with_media = request.args.get("media") == "with"
+        if with_media:
+            month = year = None
 
         sql = (
             "SELECT "
@@ -37,11 +40,11 @@ def api_tours(cursor):
             "LEFT JOIN bikes b ON b.id = a.bike_id "
             "WHERE 1 = 1"
         )
-        params = []
+        sql += type_sql
+        params = list(type_params)
 
-        if db_type:
-            sql += " AND a.activity_type = %s"
-            params.append(db_type)
+        if with_media:
+            sql += " AND TRIM(COALESCE(a.media, '')) <> ''"
 
         if year:
             year_i = parse_year_value(year)
