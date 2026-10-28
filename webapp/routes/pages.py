@@ -1,7 +1,7 @@
 import io
 import mimetypes
 from flask import Blueprint, current_app, render_template, request, send_file, send_from_directory
-from datetime import datetime
+from datetime import date, datetime
 from ..db.database import mysql_connection_wrapper
 from ..services.biketracker_source import BikeTrackerSourceError, get_source
 from ..services.track_files import load_track_data, track_extension
@@ -219,7 +219,7 @@ def tour_media(cursor, tour_id):
 @pages_bp.route("/galerie", methods=["GET"])
 @mysql_connection_wrapper
 def gallery(cursor):
-    # Alle Bilder (ohne Videos) aller Touren, neueste Tour zuerst
+    # Alle Bilder und Videos aller Touren, neueste Tour zuerst
     cursor.execute(
         """
         SELECT activity_id, activity_name, activity_date, media FROM activities
@@ -227,20 +227,46 @@ def gallery(cursor):
         ORDER BY activity_date DESC, activity_id DESC
         """
     )
+    rows = cursor.fetchall()
+
+    cursor.execute("SELECT filename, caption FROM media WHERE caption IS NOT NULL AND caption <> ''")
+    captions = {r["filename"]: r["caption"] for r in cursor.fetchall()}
+
+    # Nach Jahren gruppiert (Zwischenüberschriften); rows sind bereits absteigend sortiert
+    years = []
     images = []
-    for row in cursor.fetchall():
+    for row in rows:
+        activity_date = row["activity_date"]
+        year = activity_date.year if isinstance(activity_date, (date, datetime)) else str(activity_date)[:4]
+        if not years or years[-1]["year"] != year:
+            years.append({"year": year, "images": []})
+        images = years[-1]["images"]
+
         tour = {
             "id": row["activity_id"],
             "name": row["activity_name"],
             "date_display": format_date_display(row["activity_date"]),
         }
-        # index = Position in der Medienliste der Tour (mit Videos), damit die Bilderseite
-        # beim Klick direkt dieses Bild zeigt
+        # index = Position in der Medienliste der Tour, damit die Bilderseite
+        # beim Klick direkt dieses Bild/Video zeigt
         for index, filename in enumerate(_tour_media_filenames(row["media"])):
-            if not filename.lower().endswith(VIDEO_EXTENSIONS):
-                images.append({"filename": filename, "index": index, "tour": tour})
+            images.append({
+                "filename": filename,
+                "index": index,
+                "caption": captions.get(filename) or "",
+                "is_video": filename.lower().endswith(VIDEO_EXTENSIONS),
+                "tour": tour,
+            })
 
-    return render_template("gallery.html", images=images)
+    years = [group for group in years if group["images"]]
+    all_images = [image for group in years for image in group["images"]]
+    video_count = sum(1 for image in all_images if image["is_video"])
+    return render_template(
+        "gallery.html",
+        years=years,
+        image_count=len(all_images) - video_count,
+        video_count=video_count,
+    )
 
 
 @pages_bp.route("/tour/<int:tour_id>", methods=["GET"])

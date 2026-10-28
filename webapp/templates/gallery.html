@@ -15,11 +15,55 @@
         }
 
         /* Raster mit großen Vorschaubildern; Spaltenzahl passt sich der Fensterbreite an */
-        #galleryGrid {
+        .gallery-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
             gap: 16px;
             margin-top: 10px;
+        }
+
+        /* Sprungleiste zu den Jahren; bleibt beim Scrollen oben stehen */
+        html {
+            scroll-behavior: smooth;
+        }
+
+        #galleryYearNav {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin: 0 -20px;
+            padding: 10px 20px;
+            background: rgba(244, 247, 252, 0.95);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+        }
+
+        .gallery-year-link {
+            padding: 5px 12px;
+            border-radius: 6px;
+            background: #4B77BE;
+            color: #fff;
+            font-size: 13px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: background-color 0.2s;
+        }
+
+        .gallery-year-link:hover {
+            background: #3a5f9e;
+        }
+
+        /* Zwischenüberschrift je Jahr, neuestes Jahr zuerst; scroll-margin hält sie
+           beim Sprung unterhalb der Sprungleiste */
+        .gallery-year {
+            scroll-margin-top: 60px;
+            margin: 28px 0 0;
+            padding-bottom: 6px;
+            border-bottom: 2px solid #dde4f0;
+            font-size: 20px;
+            color: #1C3F75;
         }
 
         .gallery-item {
@@ -38,10 +82,67 @@
         }
 
         .gallery-image {
+            position: relative;
             aspect-ratio: 4 / 3;
             background: #f4f6fa;
             border-radius: 8px;
             overflow: hidden;
+        }
+
+        /* Kachel als Platzhalter, bis das erste Videobild geladen ist (oder falls es nicht lädt) */
+        .gallery-video {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            height: 100%;
+            background: #dde4f0;
+            color: #4B77BE;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .gallery-video-icon {
+            font-size: 42px;
+            line-height: 1;
+        }
+
+        /* Erstes Videobild als Vorschau über der Kachel, Play-Symbol darüber */
+        .gallery-video-preview {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .gallery-video-preview.loaded {
+            opacity: 1;
+        }
+
+        .gallery-video-play {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            width: 56px;
+            height: 56px;
+            padding-left: 4px;
+            box-sizing: border-box;
+            border-radius: 50%;
+            background: rgba(28, 63, 117, 0.75);
+            color: #fff;
+            font-size: 24px;
+        }
+
+        .gallery-video-preview.loaded + .gallery-video-play {
+            display: flex;
         }
 
         .gallery-image img {
@@ -49,6 +150,17 @@
             width: 100%;
             height: 100%;
             object-fit: cover;
+        }
+
+        /* Bildunterschrift höchstens zwei Zeilen, der volle Text steht im Tooltip */
+        .gallery-caption {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1C3F75;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
         }
 
         .gallery-tour {
@@ -83,18 +195,42 @@
 
 <div id="pageContent">
 
-    <h1 class="title">Galerie<span class="gallery-count">{{ images | length }} Bilder</span></h1>
+    <h1 class="title">Galerie<span class="gallery-count">{{ image_count }} Bilder · {{ video_count }} Videos</span></h1>
 
-    {% if images %}
+    {% if years %}
+        <nav id="galleryYearNav">
+            {% for group in years %}
+                <a class="gallery-year-link" href="#jahr-{{ group.year }}">{{ group.year }}</a>
+            {% endfor %}
+        </nav>
+    {% endif %}
+
+    {% for group in years %}
+        <h2 class="gallery-year" id="jahr-{{ group.year }}">{{ group.year }}<span class="gallery-count">{{ group.images | length }}</span></h2>
         {# Vorschaubilder sind die Originalbilder; loading="lazy" lädt nur die sichtbaren.
-           Klick öffnet die Bilderseite der Tour mit genau diesem Bild #}
-        <div id="galleryGrid">
-            {% for image in images %}
+           Klick öffnet die Bilderseite der Tour mit genau diesem Bild/Video #}
+        <div class="gallery-grid">
+            {% for image in group.images %}
                 <a class="gallery-item" href="{{ url_for('pages.tour_media', tour_id=image.tour.id, bild=image.index) }}"
-                   title="{{ image.tour.name }} ({{ image.tour.date_display }})">
+                   title="{% if image.caption %}{{ image.caption }} – {% endif %}{{ image.tour.name }} ({{ image.tour.date_display }})">
                     <div class="gallery-image">
-                        <img src="{{ url_for('pages.tour_media_file', filename=image.filename) }}" alt="" loading="lazy">
+                        {% if image.is_video %}
+                            <div class="gallery-video">
+                                <span class="gallery-video-icon">&#9654;</span>
+                                <span>Video</span>
+                            </div>
+                            {# src wird erst gesetzt, wenn die Kachel sichtbar wird (Script unten);
+                               #t=0.1 lässt den Browser das erste Bild anzeigen #}
+                            <video class="gallery-video-preview" muted playsinline preload="none"
+                                   data-src="{{ url_for('pages.tour_media_file', filename=image.filename) }}#t=0.1"></video>
+                            <span class="gallery-video-play">&#9654;</span>
+                        {% else %}
+                            <img src="{{ url_for('pages.tour_media_file', filename=image.filename) }}" alt="{{ image.caption }}" loading="lazy">
+                        {% endif %}
                     </div>
+                    {% if image.caption %}
+                        <div class="gallery-caption">{{ image.caption }}</div>
+                    {% endif %}
                     <div class="gallery-tour">
                         {{ image.tour.name }} <span class="gallery-tour-date">· {{ image.tour.date_display }}</span>
                     </div>
@@ -103,9 +239,27 @@
         </div>
     {% else %}
         <p class="gallery-empty">Es sind noch keine Bilder vorhanden.</p>
-    {% endif %}
+    {% endfor %}
 
 </div>
+
+<script>
+    // Videos kommen komplett über die Drive-API; daher erst laden, wenn die Kachel in Sichtweite ist
+    const videoObserver = new IntersectionObserver((entries, observer) => {
+        entries.forEach((entry) => {
+            if (!entry.isIntersecting) {
+                return;
+            }
+            const video = entry.target;
+            observer.unobserve(video);
+            video.addEventListener("loadeddata", () => video.classList.add("loaded"), { once: true });
+            video.preload = "metadata";
+            video.src = video.dataset.src;
+        });
+    }, { rootMargin: "200px" });
+
+    document.querySelectorAll(".gallery-video-preview").forEach((video) => videoObserver.observe(video));
+</script>
 
 </body>
 </html>
