@@ -126,11 +126,41 @@
             font-weight: 600;
             color: #1C3F75;
             white-space: pre-line;
+            cursor: text;
         }
 
         #mediaCaption.media-caption-empty {
             color: #aab5cc;
             font-weight: 400;
+        }
+
+        /* Eingabefeld zum Bearbeiten der Bildunterschrift (Doppelklick) */
+        #mediaCaptionInput {
+            flex: 0 0 auto;
+            display: block;
+            width: 100%;
+            box-sizing: border-box;
+            padding: 4px 8px;
+            border: 1px solid #4B77BE;
+            border-radius: 6px;
+            font: inherit;
+            font-size: 15px;
+            font-weight: 600;
+            color: #1C3F75;
+            text-align: center;
+            resize: vertical;
+        }
+
+        #mediaCaptionInput[hidden] {
+            display: none;
+        }
+
+        #mediaCaptionHint {
+            flex: 0 0 auto;
+            margin-top: -6px;
+            text-align: center;
+            font-size: 11px;
+            color: #aab5cc;
         }
 
         /* Vorschauleiste unter der Bildunterschrift; bei vielen Medien horizontal scrollbar */
@@ -222,7 +252,9 @@
     <div id="mediaCard">
         {% if media %}
             <div id="mediaStage"></div>
-            <div id="mediaCaption"></div>
+            <div id="mediaCaption" title="Doppelklick zum Bearbeiten"></div>
+            <textarea id="mediaCaptionInput" rows="2" maxlength="2000" hidden></textarea>
+            <div id="mediaCaptionHint">Doppelklick zum Bearbeiten</div>
             {% if media | length > 1 %}
                 {# Vorschaubilder sind die Originalbilder (im Browser zwischengespeichert);
                    Videos bekommen eine Kachel statt eines Vorschaubilds #}
@@ -251,6 +283,7 @@
     const mediaItems = [
         {% for item in media %}
         {
+            filename: {{ item.filename | tojson }},
             url: {{ url_for('pages.tour_media_file', filename=item.filename) | tojson }},
             caption: {{ item.caption | tojson }},
             isVideo: {{ item.is_video | tojson }},
@@ -296,8 +329,7 @@
         }
         element.src = item.url;
 
-        caption.textContent = item.caption || "Kein Text zum Bild";
-        caption.classList.toggle("media-caption-empty", !item.caption);
+        renderCaption(item);
 
         counter.textContent = `${currentIndex + 1} / ${mediaItems.length}`;
         btnPrev.disabled = currentIndex === 0;
@@ -306,6 +338,97 @@
         thumbs.forEach((thumb, thumbIndex) => thumb.classList.toggle("active", thumbIndex === currentIndex));
         thumbs[currentIndex]?.scrollIntoView({ block: "nearest", inline: "nearest" });
     }
+
+    function renderCaption(item) {
+        caption.textContent = item.caption || "Kein Text zum Bild";
+        caption.classList.toggle("media-caption-empty", !item.caption);
+    }
+
+    // Bildunterschrift bearbeiten: Doppelklick öffnet das Feld, Enter/Verlassen speichert,
+    // Shift+Enter fügt eine neue Zeile ein, Esc bricht ab
+    const captionInput = document.getElementById("mediaCaptionInput");
+    const captionHint = document.getElementById("mediaCaptionHint");
+    const captionHintText = captionHint.textContent;
+    let captionEditIndex = null;
+    let captionSaving = false;
+
+    function closeCaptionEditor() {
+        captionEditIndex = null;
+        captionInput.hidden = true;
+        caption.hidden = false;
+        captionHint.textContent = captionHintText;
+    }
+
+    function startCaptionEdit() {
+        if (captionEditIndex !== null || captionSaving) {
+            return;
+        }
+        captionEditIndex = currentIndex;
+        captionInput.value = mediaItems[currentIndex].caption || "";
+        caption.hidden = true;
+        captionInput.hidden = false;
+        captionHint.textContent = "Enter speichert · Shift+Enter neue Zeile · Esc bricht ab";
+        captionInput.focus();
+        captionInput.select();
+    }
+
+    async function saveCaption() {
+        if (captionEditIndex === null || captionSaving) {
+            return;
+        }
+        const editIndex = captionEditIndex;
+        const item = mediaItems[editIndex];
+        const newCaption = captionInput.value.trim();
+        if (newCaption === (item.caption || "")) {
+            closeCaptionEditor();
+            return;
+        }
+
+        captionSaving = true;
+        try {
+            const response = await fetch(
+                `/api/tours/{{ tour.id }}/media/${encodeURIComponent(item.filename)}/caption`,
+                {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ caption: newCaption }),
+                }
+            );
+            const result = await response.json();
+            if (!response.ok || result.status !== "ok") {
+                throw new Error(result.message || "Speichern fehlgeschlagen.");
+            }
+            item.caption = result.caption;
+            // Tooltip des Vorschaubilds wie im Template: Text bzw. "Bild"/"Video" plus Position
+            if (thumbs[editIndex]) {
+                const label = item.caption || (item.isVideo ? "Video" : "Bild");
+                thumbs[editIndex].title = `${label} (${editIndex + 1} / ${mediaItems.length})`;
+            }
+        } catch (error) {
+            alert(error.message || "Die Bildunterschrift konnte nicht gespeichert werden.");
+        } finally {
+            captionSaving = false;
+            closeCaptionEditor();
+            renderCaption(mediaItems[currentIndex]);
+        }
+    }
+
+    caption.addEventListener("dblclick", (event) => {
+        event.preventDefault();
+        startCaptionEdit();
+    });
+
+    captionInput.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" && !event.shiftKey) {
+            event.preventDefault();
+            saveCaption();
+        } else if (event.key === "Escape") {
+            event.preventDefault();
+            closeCaptionEditor();
+        }
+    });
+
+    captionInput.addEventListener("blur", () => saveCaption());
 
     const thumbs = Array.from(document.querySelectorAll(".media-thumb"));
     thumbs.forEach((thumb) => {
@@ -317,6 +440,10 @@
 
     // Blättern auch mit den Pfeiltasten
     document.addEventListener("keydown", (event) => {
+        // Pfeiltasten im Eingabefeld der Bildunterschrift bewegen den Cursor, nicht das Bild
+        if (event.target === captionInput) {
+            return;
+        }
         if (event.key === "ArrowLeft") {
             showMedia(currentIndex - 1);
         } else if (event.key === "ArrowRight") {

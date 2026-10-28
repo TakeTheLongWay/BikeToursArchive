@@ -1,6 +1,6 @@
 import io
 import mimetypes
-from flask import Blueprint, current_app, render_template, request, send_file, send_from_directory
+from flask import Blueprint, current_app, jsonify, render_template, request, send_file, send_from_directory
 from datetime import date, datetime
 from ..db.database import mysql_connection_wrapper
 from ..services.biketracker_source import BikeTrackerSourceError, get_source
@@ -169,6 +169,36 @@ def _load_tour_media(cursor, media_value):
         }
         for filename in filenames
     ]
+
+
+@pages_bp.route("/api/tours/<int:tour_id>/media/<path:filename>/caption", methods=["PUT"])
+@mysql_connection_wrapper
+def api_update_media_caption(cursor, tour_id, filename):
+    try:
+        data = request.get_json(silent=True) or {}
+        # Leerer Text entfernt die Bildunterschrift (NULL, wie beim Import)
+        caption = str(data.get("caption", "")).strip() or None
+
+        cursor.execute("SELECT media FROM activities WHERE activity_id = %s", (tour_id,))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"status": "error", "message": "Tour nicht gefunden."}), 404
+        if filename not in _tour_media_filenames(row["media"]):
+            return jsonify({"status": "error", "message": "Bild gehört nicht zu dieser Tour."}), 404
+
+        # Zeile anlegen, falls das Bild noch keinen Eintrag in media hat
+        cursor.execute(
+            """
+            INSERT INTO media (filename, caption) VALUES (%s, %s)
+            ON DUPLICATE KEY UPDATE caption = VALUES(caption)
+            """,
+            (filename, caption),
+        )
+
+        return jsonify({"status": "ok", "filename": filename, "caption": caption or ""})
+    except Exception as exc:
+        current_app.logger.error("FEHLER beim Speichern der Bildunterschrift %s: %s", filename, exc)
+        return jsonify({"status": "error", "message": str(exc)}), 500
 
 
 @pages_bp.route("/tour-media/<path:filename>")
