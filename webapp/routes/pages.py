@@ -211,7 +211,36 @@ def tour_media(cursor, tour_id):
             "date_display": format_date_display(row["activity_date"]),
         },
         media=_load_tour_media(cursor, row["media"]),
+        # ?bild=<index> aus der Galerie; ohne Angabe beginnt die Seite mit dem ersten Bild
+        start_index=request.args.get("bild", 0, type=int),
     )
+
+
+@pages_bp.route("/galerie", methods=["GET"])
+@mysql_connection_wrapper
+def gallery(cursor):
+    # Alle Bilder (ohne Videos) aller Touren, neueste Tour zuerst
+    cursor.execute(
+        """
+        SELECT activity_id, activity_name, activity_date, media FROM activities
+        WHERE media IS NOT NULL AND media <> ''
+        ORDER BY activity_date DESC, activity_id DESC
+        """
+    )
+    images = []
+    for row in cursor.fetchall():
+        tour = {
+            "id": row["activity_id"],
+            "name": row["activity_name"],
+            "date_display": format_date_display(row["activity_date"]),
+        }
+        # index = Position in der Medienliste der Tour (mit Videos), damit die Bilderseite
+        # beim Klick direkt dieses Bild zeigt
+        for index, filename in enumerate(_tour_media_filenames(row["media"])):
+            if not filename.lower().endswith(VIDEO_EXTENSIONS):
+                images.append({"filename": filename, "index": index, "tour": tour})
+
+    return render_template("gallery.html", images=images)
 
 
 @pages_bp.route("/tour/<int:tour_id>", methods=["GET"])

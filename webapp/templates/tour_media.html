@@ -197,6 +197,7 @@
     <button id="btnSettings" onclick="window.location.href='{{ url_for('pages.appsettings') }}'">Settings</button>
     <button id="btnKmStat" onclick="window.location.href='{{ url_for('pages.kmyear') }}'">km-Stat</button>
     <button id="btnKmCurves" onclick="window.location.href='{{ url_for('pages.kmcurves') }}'">km-Kurven</button>
+    <button id="btnGallery" onclick="window.location.href='{{ url_for('pages.gallery') }}'">Galerie</button>
 </div>
 
 <div id="pageContent">
@@ -262,8 +263,8 @@
     const btnPrev = document.getElementById("btnMediaPrev");
     const btnNext = document.getElementById("btnMediaNext");
 
-    // Beim Aufruf der Seite immer mit dem ersten Bild beginnen
-    let currentIndex = 0;
+    // Startbild aus ?bild=<index> (Galerie), sonst das erste Bild; showMedia begrenzt den Index
+    let currentIndex = {{ start_index | tojson }};
 
     function showMedia(index) {
         currentIndex = Math.max(0, Math.min(index, mediaItems.length - 1));
@@ -322,7 +323,7 @@
         }
     });
 
-    showMedia(0);
+    showMedia(currentIndex);
 </script>
 {% endif %}
 
