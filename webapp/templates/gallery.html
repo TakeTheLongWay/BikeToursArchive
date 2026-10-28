@@ -55,6 +55,12 @@
             background: #3a5f9e;
         }
 
+        /* Jahr, das gerade im Fenster zu sehen ist */
+        .gallery-year-link.active {
+            background: #1C3F75;
+            box-shadow: 0 0 0 2px #8fb0e3;
+        }
+
         /* Zwischenüberschrift je Jahr, neuestes Jahr zuerst; scroll-margin hält sie
            beim Sprung unterhalb der Sprungleiste */
         .gallery-year {
@@ -259,6 +265,39 @@
     }, { rootMargin: "200px" });
 
     document.querySelectorAll(".gallery-video-preview").forEach((video) => videoObserver.observe(video));
+
+    // Sprungleiste: das Jahr markieren, dessen Abschnitt gerade oben unter der Leiste steht
+    const yearNav = document.getElementById("galleryYearNav");
+    const yearHeadings = Array.from(document.querySelectorAll(".gallery-year"));
+    const yearLinks = Array.from(document.querySelectorAll(".gallery-year-link"));
+    let yearNavPending = false;
+
+    function updateActiveYear() {
+        yearNavPending = false;
+        const limit = yearNav.getBoundingClientRect().bottom + 80;
+        let activeIndex = 0;
+        yearHeadings.forEach((heading, index) => {
+            if (heading.getBoundingClientRect().top <= limit) {
+                activeIndex = index;
+            }
+        });
+        // Ganz unten angekommen: letztes Jahr markieren, auch wenn seine Überschrift nicht bis oben kommt
+        if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2) {
+            activeIndex = yearHeadings.length - 1;
+        }
+        yearLinks.forEach((link, index) => link.classList.toggle("active", index === activeIndex));
+    }
+
+    if (yearNav) {
+        window.addEventListener("scroll", () => {
+            if (!yearNavPending) {
+                yearNavPending = true;
+                requestAnimationFrame(updateActiveYear);
+            }
+        }, { passive: true });
+        window.addEventListener("resize", updateActiveYear);
+        updateActiveYear();
+    }
 </script>
 
 </body>
