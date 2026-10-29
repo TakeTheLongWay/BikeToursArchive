@@ -11,15 +11,17 @@ diary_bp = Blueprint("diary", __name__)
 DEFAULT_WEEKS = 12
 MAX_WEEKS = 104
 
-# Für die Farbe im Tagebuch: Radfahrten und Touren zu Fuß, alles andere "other"
-CYCLING_TYPES = set(ACTIVITY_TYPE_ALIASES["cycling"])
-FOOT_TYPES = {"hiking", "Hike", "Wandern", "Spaziergang", "Walk"}
+# Für die Farbe im Tagebuch: Radfahrten und Touren zu Fuß, alles andere "other".
+# Vergleich ohne Groß-/Kleinschreibung wie in MySQL (BikeTracker-GPX liefert z. B. "ebikeride").
+CYCLING_TYPES = {t.lower() for t in ACTIVITY_TYPE_ALIASES["cycling"]}
+FOOT_TYPES = {"hiking", "hike", "wandern", "spaziergang", "walk"}
 
 
 def _category(activity_type):
-    if activity_type in CYCLING_TYPES:
+    normalized = (activity_type or "").strip().lower()
+    if normalized in CYCLING_TYPES:
         return "cycling"
-    if activity_type in FOOT_TYPES:
+    if normalized in FOOT_TYPES:
         return "foot"
     return "other"
 
