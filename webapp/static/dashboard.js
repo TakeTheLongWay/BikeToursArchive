@@ -463,6 +463,16 @@ async function loadData() {
             goalDayAvgYtdEl.textContent = formatDailyKm(elapsedDays > 0 ? ytdKm / elapsedDays : 0);
         }
 
+        const goalLongestRideEl = document.getElementById("goalLongestRide");
+        if (goalLongestRideEl) {
+            goalLongestRideEl.textContent = formatKmOneDecimal(num(stats.longest_ride_km, 0));
+            if (stats.longest_ride_id) {
+                goalLongestRideEl.href = `/tour/${stats.longest_ride_id}`;
+            } else {
+                goalLongestRideEl.removeAttribute("href");
+            }
+        }
+
         setActivityCount("goalWeekCount", stats.week_count);
         setActivityCount("goalMonthCount", stats.month_count);
         setActivityCount("goalYearCount", stats.year_count);

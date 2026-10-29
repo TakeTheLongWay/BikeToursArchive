@@ -92,6 +92,16 @@ def api_stats(cursor):
         cursor.execute(sql_all_rides)
         row_all_rides = cursor.fetchone()
 
+        # Längste Radfahrt im gesamten Bestand, unabhängig von den Filtern
+        cycling_sql, cycling_params = activity_type_condition("cycling")
+        cursor.execute(
+            "SELECT activity_id, distance_km FROM activities WHERE distance_km IS NOT NULL"
+            + cycling_sql
+            + " ORDER BY distance_km DESC LIMIT 1",
+            cycling_params,
+        )
+        row_longest = cursor.fetchone()
+
         return jsonify(
             {
                 "month_name": month_name,
@@ -105,6 +115,8 @@ def api_stats(cursor):
                 "week_elapsed_time_s": int(row_week["elapsed_s"]),
                 "all_rides_km": float(row_all_rides["km"]),
                 "all_rides_count": row_all_rides["cnt"],
+                "longest_ride_km": float(row_longest["distance_km"]) if row_longest else 0.0,
+                "longest_ride_id": row_longest["activity_id"] if row_longest else None,
             }
         )
     except Exception as exc:

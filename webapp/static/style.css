@@ -128,6 +128,17 @@ button:hover {
     color: #888;
 }
 
+/* Verlinkter Wert in einer Stat-Box, z. B. längste Fahrt -> Tourdetailseite */
+.goalFrameLink {
+    color: #4B77BE;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.goalFrameLink:hover {
+    text-decoration: underline;
+}
+
 /* Anzahl Aktivitäten klein neben dem Boxtitel */
 .goalFrameCount {
     font-size: 11px;
