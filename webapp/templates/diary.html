@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="utf-8">
+    <title>MyBikeLog – Tagebuch</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+    <style>
+        /* ── Kopfzeile: Legende links, Sprung zu Jahr rechts ── */
+        #diaryTopRow {
+            display: flex;
+            gap: 5px;
+            margin: 10px 0 5px;
+            flex-wrap: wrap;
+        }
+
+        #diaryLegendBox {
+            flex: 1 1 auto;
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            background: #fff;
+            padding: 18px 22px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+
+        .diaryLegendLabel {
+            min-width: 150px;
+            font-size: 16px;
+            font-weight: 700;
+            color: #1C3F75;
+        }
+
+        .legend {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            font-size: 14px;
+            color: #555;
+            flex-wrap: wrap;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .legend-dot {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+        }
+
+        #diaryTopRow #filterControls {
+            justify-content: flex-start;
+        }
+
+        #diaryTopRow #filterControls select {
+            width: 100%;
+        }
+
+        #diaryTopRow #filterControls > div {
+            flex: 1;
+        }
+
+        /* ── Tabelle ── */
+        .diary-card {
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            padding: 0 0 10px;
+        }
+
+        #diaryTable {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
+
+        #diaryTable thead th {
+            position: sticky;
+            top: 0;
+            z-index: 5;
+            background: #fff;
+            color: #888;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            padding: 12px 6px;
+            border-bottom: 2px solid #e3ebf5;
+        }
+
+        #diaryTable thead th:first-child {
+            border-top-left-radius: 12px;
+        }
+
+        #diaryTable thead th:last-child {
+            border-top-right-radius: 12px;
+        }
+
+        #diaryTable col.week-col {
+            width: 170px;
+        }
+
+        #diaryTable td {
+            vertical-align: top;
+            border-bottom: 1px solid #eef2f8;
+            padding: 6px;
+        }
+
+        /* Monatszeile */
+        .month-row td {
+            background: #f4f7fc;
+            color: #1C3F75;
+            font-weight: 700;
+            font-size: 15px;
+            padding: 10px 14px;
+            border-bottom: 1px solid #e3ebf5;
+        }
+
+        /* Wochenspalte mit Summen */
+        .week-cell {
+            padding: 10px 14px !important;
+            border-right: 1px solid #eef2f8;
+        }
+
+        .week-label {
+            font-weight: 700;
+            color: #1C3F75;
+            font-size: 14px;
+        }
+
+        .week-range {
+            font-size: 12px;
+            color: #888;
+            margin-bottom: 6px;
+        }
+
+        .week-totals {
+            font-size: 12px;
+            color: #555;
+            line-height: 1.6;
+        }
+
+        .week-totals strong {
+            color: #1C3F75;
+            font-size: 15px;
+        }
+
+        .week-empty {
+            font-size: 12px;
+            color: #bbb;
+        }
+
+        /* Tageszelle */
+        .day-cell {
+            height: 96px;
+        }
+
+        .day-cell.today {
+            background: #f0f5fc;
+        }
+
+        .day-cell.future .day-number {
+            color: #ccc;
+        }
+
+        .day-number {
+            font-size: 11px;
+            color: #999;
+            font-weight: 600;
+        }
+
+        .day-cell.today .day-number {
+            color: #1C3F75;
+        }
+
+        .day-tours {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 6px;
+            margin-top: 2px;
+        }
+
+        /* Tour: Kreis (Größe nach km) mit Name darunter */
+        .tour {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            max-width: 100%;
+            min-width: 0;
+            text-decoration: none;
+            color: inherit;
+        }
+
+        .tour-bubble {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            color: #fff;
+            font-size: 11px;
+            font-weight: 700;
+            transition: transform 0.15s;
+        }
+
+        .tour:hover .tour-bubble {
+            transform: scale(1.08);
+        }
+
+        .tour.cycling .tour-bubble { background: #1C3F75; }
+        .tour.foot .tour-bubble    { background: #2e9e6a; }
+        .tour.other .tour-bubble   { background: #e08a1e; }
+
+        .tour-name {
+            max-width: 100%;
+            font-size: 11px;
+            color: #444;
+            margin-top: 3px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        #diaryStatus {
+            text-align: center;
+            color: #aaa;
+            font-size: 0.95em;
+            padding: 20px 0 10px;
+        }
+
+        #diaryStatus.error {
+            color: #c0392b;
+        }
+    </style>
+</head>
+<body>
+
+<div id="MainMenuDashboard">
+    <button id="btnDiary" onclick="window.location.href='{{ url_for('pages.diary') }}'">Tagebuch</button>
+    <button id="btnDashboard" onclick="window.location.href='{{ url_for('pages.index') }}'">Dashboard</button>
+    <button id="btnBikeTracker" onclick="window.location.href='{{ url_for('biketracker.biketracker') }}'">BikeTracker</button>
+    <button id="btnEditGoals" onclick="window.location.href='{{ url_for('pages.mygoals') }}'">Ziele</button>
+    <button id="btnMyBikes" onclick="window.location.href='{{ url_for('pages.mybikes') }}'">Bikes</button>
+    <button id="btnSettings" onclick="window.location.href='{{ url_for('pages.appsettings') }}'">Settings</button>
+    <button id="btnStatistics" onclick="window.location.href='{{ url_for('pages.statistics') }}'">Statistik</button>
+    <button id="btnGallery" onclick="window.location.href='{{ url_for('pages.gallery') }}'">Galerie</button>
+</div>
+
+<div id="pageContent">
+
+    <h1 class="title">Tagebuch</h1>
+
+    <div id="diaryTopRow">
+        <div id="diaryLegendBox">
+            <div class="diaryLegendLabel">Touren je Tag</div>
+            <div class="legend">
+                <div class="legend-item"><div class="legend-dot" style="background:#1C3F75;"></div><span>Rad</span></div>
+                <div class="legend-item"><div class="legend-dot" style="background:#2e9e6a;"></div><span>zu Fuß</span></div>
+                <div class="legend-item"><div class="legend-dot" style="background:#e08a1e;"></div><span>Sonstige</span></div>
+                <div class="legend-item"><span>Kreisgröße = km</span></div>
+            </div>
+        </div>
+
+        <div id="filterControls">
+            <div>
+                <label for="yearSelect">Springe zu Jahr</label>
+                <select id="yearSelect"></select>
+            </div>
+        </div>
+    </div>
+
+    <div class="diary-card">
+        <table id="diaryTable">
+            <colgroup>
+                <col class="week-col">
+                <col span="7">
+            </colgroup>
+            <thead>
+                <tr>
+                    <th>Woche</th>
+                    <th>Mo</th><th>Di</th><th>Mi</th><th>Do</th><th>Fr</th><th>Sa</th><th>So</th>
+                </tr>
+            </thead>
+            <tbody id="diaryBody"></tbody>
+        </table>
+        <div id="diaryStatus">Lade Daten…</div>
+        <div id="diarySentinel"></div>
+    </div>
+
+</div>
+
+<script>
+const MONTH_NAMES = ["Januar", "Februar", "März", "April", "Mai", "Juni",
+                     "Juli", "August", "September", "Oktober", "November", "Dezember"];
+const MONTHS_SHORT = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
+const WEEKS_PER_LOAD = 12;
+
+const body = document.getElementById("diaryBody");
+const statusBox = document.getElementById("diaryStatus");
+
+// Ladezustand: nextEnd = Datum, ab dem die nächsten (älteren) Wochen geladen werden
+let nextEnd = null;
+let hasMore = true;
+let loading = false;
+let lastMonthKey = null;
+// Erhöht sich bei jedem Sprung, damit Antworten alter Abrufe verworfen werden
+let generation = 0;
+
+function todayIso() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function parseIso(iso) {
+    const [y, m, d] = iso.split("-").map(Number);
+    return new Date(y, m - 1, d);
+}
+
+function escapeHtml(text) {
+    return String(text ?? "").replace(/[&<>"']/g, c => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+    })[c]);
+}
+
+function formatDuration(seconds) {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    return `${h}:${String(m).padStart(2, "0")} h`;
+}
+
+function formatKm(km) {
+    return km >= 100 ? km.toFixed(0) : km.toFixed(1).replace(".", ",");
+}
+
+// Kreisdurchmesser in px: wächst mit der Wurzel der Distanz, begrenzt auf 22–62 px
+function bubbleSize(km) {
+    return Math.round(Math.min(62, Math.max(22, 18 + Math.sqrt(km) * 6)));
+}
+
+function tourHtml(tour) {
+    const size = bubbleSize(tour.distance_km);
+    const tooltip = [
+        tour.name,
+        `${tour.time} Uhr · ${tour.type}`,
+        `${formatKm(tour.distance_km)} km · ${formatDuration(tour.elapsed_s)} · ${Math.round(tour.elevation_m)} Hm`,
+        tour.bike ? `Bike: ${tour.bike}` : ""
+    ].filter(Boolean).join("\n");
+
+    return `<a class="tour ${tour.category}" href="/tour/${tour.id}" title="${escapeHtml(tooltip)}">
+        <div class="tour-bubble" style="width:${size}px;height:${size}px;">${size >= 30 ? Math.round(tour.distance_km) : ""}</div>
+        <div class="tour-name">${escapeHtml(tour.name)}</div>
+    </a>`;
+}
+
+function dayHtml(day, today) {
+    const date = parseIso(day.date);
+    const classes = ["day-cell"];
+    if (day.date === today) classes.push("today");
+    if (day.date > today) classes.push("future");
+
+    // Am Monatsersten den Monat mit anzeigen
+    const label = date.getDate() === 1 ? `1. ${MONTHS_SHORT[date.getMonth()]}` : date.getDate();
+
+    return `<td class="${classes.join(" ")}">
+        <div class="day-number">${label}</div>
+        <div class="day-tours">${day.tours.map(tourHtml).join("")}</div>
+    </td>`;
+}
+
+function weekHtml(week, today) {
+    const start = parseIso(week.start);
+    const end = parseIso(week.days[6].date);
+    const range = `${start.getDate()}.${start.getMonth() + 1}. – ${end.getDate()}.${end.getMonth() + 1}.${end.getFullYear()}`;
+    const t = week.totals;
+
+    const totals = t.count
+        ? `<div class="week-totals">
+               <strong>${formatKm(t.distance_km)} km</strong><br>
+               ${formatDuration(t.elapsed_s)} · ${Math.round(t.elevation_m)} Hm<br>
+               ${t.count} ${t.count === 1 ? "Tour" : "Touren"}
+           </div>`
+        : `<div class="week-empty">keine Touren</div>`;
+
+    return `<tr>
+        <td class="week-cell">
+            <div class="week-label">KW ${week.iso_week}</div>
+            <div class="week-range">${range}</div>
+            ${totals}
+        </td>
+        ${week.days.map(d => dayHtml(d, today)).join("")}
+    </tr>`;
+}
+
+function renderWeeks(weeks) {
+    const today = todayIso();
+    let html = "";
+    for (const week of weeks) {
+        // Monatsüberschrift, sobald der letzte Tag der Woche in einem neuen Monat liegt
+        const lastDay = parseIso(week.days[6].date);
+        const monthKey = `${lastDay.getFullYear()}-${lastDay.getMonth()}`;
+        if (monthKey !== lastMonthKey) {
+            html += `<tr class="month-row"><td colspan="8">${MONTH_NAMES[lastDay.getMonth()]} ${lastDay.getFullYear()}</td></tr>`;
+            lastMonthKey = monthKey;
+        }
+        html += weekHtml(week, today);
+    }
+    body.insertAdjacentHTML("beforeend", html);
+}
+
+async function loadMore() {
+    if (loading || !hasMore) return;
+    loading = true;
+    const requestGeneration = generation;
+    statusBox.className = "";
+    statusBox.textContent = "Lade Daten…";
+
+    try {
+        const resp = await fetch(`/api/diary?end=${nextEnd}&weeks=${WEEKS_PER_LOAD}`);
+        if (!resp.ok) throw new Error("API-Fehler");
+        const data = await resp.json();
+        if (requestGeneration !== generation) return;
+
+        renderWeeks(data.weeks);
+        nextEnd = data.next_end;
+        hasMore = data.has_more;
+        statusBox.textContent = hasMore ? "" : "Keine älteren Touren vorhanden.";
+    } catch (err) {
+        if (requestGeneration !== generation) return;
+        hasMore = false;
+        statusBox.className = "error";
+        statusBox.textContent = `Fehler beim Laden: ${err.message}`;
+    } finally {
+        if (requestGeneration === generation) {
+            loading = false;
+            // Füllt die Seite noch nicht bis unten, gleich weiterladen
+            if (hasMore && sentinelVisible()) loadMore();
+        }
+    }
+}
+
+function sentinelVisible() {
+    return document.getElementById("diarySentinel").getBoundingClientRect().top < window.innerHeight + 400;
+}
+
+// Tabelle leeren und ab dem angegebenen Datum (neueste Woche oben) neu aufbauen
+function startAt(endIso) {
+    generation++;
+    body.innerHTML = "";
+    nextEnd = endIso;
+    hasMore = true;
+    loading = false;
+    lastMonthKey = null;
+    window.scrollTo(0, 0);
+    loadMore();
+}
+
+async function buildYearSelect() {
+    const select = document.getElementById("yearSelect");
+    try {
+        const resp = await fetch("/api/diary/years");
+        const years = resp.ok ? await resp.json() : [new Date().getFullYear()];
+        years.forEach(y => {
+            const opt = document.createElement("option");
+            opt.value = y;
+            opt.textContent = y;
+            select.appendChild(opt);
+        });
+    } catch (err) {
+        console.error("Jahre konnten nicht geladen werden", err);
+    }
+
+    select.addEventListener("change", () => {
+        const year = parseInt(select.value);
+        startAt(year === new Date().getFullYear() ? todayIso() : `${year}-12-31`);
+    });
+}
+
+new IntersectionObserver(entries => {
+    if (entries.some(e => e.isIntersecting)) loadMore();
+}, { rootMargin: "0px 0px 400px 0px" }).observe(document.getElementById("diarySentinel"));
+
+buildYearSelect();
+startAt(todayIso());
+</script>
+
+</body>
+</html>
