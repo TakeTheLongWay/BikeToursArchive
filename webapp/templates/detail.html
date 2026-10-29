@@ -622,9 +622,14 @@
             renderTourNameOptions();
         }
 
+        // Häufige Pendelfahrten stehen immer ganz oben in der Auswahl
+        const PINNED_TOUR_NAMES = ["Fahrt zur Arbeit", "Fahrt nach Hause"];
+
         function renderTourNameOptions() {
             tourNameList.innerHTML = "";
-            tourNames.forEach((name) => {
+            const pinned = PINNED_TOUR_NAMES.map((n) => n.toLowerCase());
+            const others = tourNames.filter((name) => !pinned.includes(name.toLowerCase()));
+            [...PINNED_TOUR_NAMES, ...others].forEach((name) => {
                 const option = document.createElement("option");
                 option.value = name;
                 tourNameList.appendChild(option);
