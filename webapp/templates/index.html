@@ -43,6 +43,7 @@
 <body>
 
 <div id="MainMenuDashboard">
+    <button id="btnDiary" onclick="window.location.href='{{ url_for('pages.diary') }}'">Tagebuch</button>
     <button id="btnImport">Import</button>
     <button id="btnBikeTracker" onclick="window.location.href='{{ url_for('biketracker.biketracker') }}'">BikeTracker</button>
     <button id="btnEditGoals" onclick="window.location.href='{{ url_for('pages.mygoals') }}'">Ziele</button>

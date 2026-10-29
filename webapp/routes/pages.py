@@ -121,6 +121,11 @@ def mygoals(cursor):
     return render_template("mygoals.html")
 
 
+@pages_bp.route("/tagebuch")
+def diary():
+    return render_template("diary.html")
+
+
 @pages_bp.route("/statistik")
 def statistics():
     return render_template("statistics.html")
