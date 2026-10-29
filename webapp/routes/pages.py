@@ -121,14 +121,9 @@ def mygoals(cursor):
     return render_template("mygoals.html")
 
 
-@pages_bp.route("/kmyear")
-def kmyear():
-    return render_template("km_year.html")
-
-
-@pages_bp.route("/kmcurves")
-def kmcurves():
-    return render_template("km_curves.html")
+@pages_bp.route("/statistik")
+def statistics():
+    return render_template("statistics.html")
 
 
 @pages_bp.route("/static/vendor/<path:filename>")
@@ -370,6 +365,7 @@ def tour_detail(cursor, tour_id):
         "avg_cadence_rpm": row.get("avg_cadence_rpm"),
         "max_cadence_rpm": row.get("max_cadence_rpm"),
         "calories": row.get("calories"),
+        "calories_calc": row.get("calories_calc"),
         "min_elevation_m": row.get("min_elevation_m"),
         "max_elevation_m": row.get("max_elevation_m"),
         "device_name": row.get("device_name"),

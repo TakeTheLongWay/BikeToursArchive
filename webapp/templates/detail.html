@@ -285,8 +285,7 @@
     <button id="btnEditGoals" onclick="window.location.href='{{ url_for('pages.mygoals') }}'">Ziele</button>
     <button id="btnMyBikes" onclick="window.location.href='{{ url_for('pages.mybikes') }}'">Bikes</button>
     <button id="btnSettings" onclick="window.location.href='{{ url_for('pages.appsettings') }}'">Settings</button>
-    <button id="btnKmStat" onclick="window.location.href='{{ url_for('pages.kmyear') }}'">km-Stat</button>
-    <button id="btnKmCurves" onclick="window.location.href='{{ url_for('pages.kmcurves') }}'">km-Kurven</button>
+    <button id="btnStatistics" onclick="window.location.href='{{ url_for('pages.statistics') }}'">Statistik</button>
     <button id="btnGallery" onclick="window.location.href='{{ url_for('pages.gallery') }}'">Galerie</button>
 </div>
 
@@ -365,6 +364,8 @@
             {{ stat("Max. Trittfrequenz", tour.max_cadence_rpm, "U/min") }}
             {# 0 kcal bedeutet: kein Wert erfasst #}
             {{ stat("Kalorien", tour.calories or none, "kcal") }}
+            {# Aus Ø Leistung und Fahrzeit berechnet (Watt * Sekunden / 1000) #}
+            {{ stat("Kalorien (berechnet)", tour.calories_calc or none, "kcal") }}
             {% if tour.min_elevation_m is not none and tour.max_elevation_m is not none %}
                 {{ stat("Höhe", "%d – %d" | format((tour.min_elevation_m | float) | round | int, (tour.max_elevation_m | float) | round | int), "m") }}
             {% else %}

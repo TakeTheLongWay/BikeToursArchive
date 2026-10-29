@@ -28,6 +28,10 @@ CREATE TABLE `activities` (
   `avg_heart_rate_bpm` smallint DEFAULT NULL,
   `max_heart_rate_bpm` smallint DEFAULT NULL,
   `device_name` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  -- Kalorien aus Ø Leistung und Fahrzeit (ohne Fahrzeit: Gesamtdauer): Watt * Sekunden / 1000
+  `calories_calc` int GENERATED ALWAYS AS (
+    ROUND(NULLIF(avg_watts, 0) * COALESCE(NULLIF(moving_time_s, 0), NULLIF(elapsed_time_s, 0)) / 1000)
+  ) STORED,
   PRIMARY KEY (`activity_id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=16710935280 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

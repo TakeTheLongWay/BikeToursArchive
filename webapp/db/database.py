@@ -119,6 +119,25 @@ def _ensure_tcx_columns(cursor):
         print(f"Spalte activities.{column} angelegt.")
 
 
+def _ensure_calories_calc_column(cursor):
+    cursor.execute("SHOW COLUMNS FROM activities LIKE 'calories_calc'")
+    if cursor.fetchone():
+        return
+
+    # Kalorien aus Ø Leistung und Fahrzeit (ohne Fahrzeit: Gesamtdauer): kcal = Watt * Sekunden / 1000.
+    # Als STORED-Spalte berechnet MySQL den Wert für alle bestehenden Touren und bei jedem
+    # INSERT/UPDATE neu; ohne Leistungs- oder Zeitwert bleibt er NULL.
+    cursor.execute(
+        """
+        ALTER TABLE activities ADD COLUMN `calories_calc` int
+        GENERATED ALWAYS AS (
+          ROUND(NULLIF(avg_watts, 0) * COALESCE(NULLIF(moving_time_s, 0), NULLIF(elapsed_time_s, 0)) / 1000)
+        ) STORED
+        """
+    )
+    print("Spalte activities.calories_calc angelegt.")
+
+
 def _ensure_default_bike_trigger(cursor):
     cursor.execute(
         """
@@ -169,6 +188,7 @@ def ensure_database():
         _ensure_media_table(cursor)
         _ensure_temperature_columns(cursor)
         _ensure_tcx_columns(cursor)
+        _ensure_calories_calc_column(cursor)
         _ensure_default_bike_trigger(cursor)
         conn.commit()
     except mysql.connector.Error as err:
