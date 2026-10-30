@@ -1,13 +1,85 @@
 import json
 from datetime import datetime
 
-from flask import Blueprint, jsonify, request
+import requests
+from flask import Blueprint, current_app, jsonify, request
 
-from ..db.database import mysql_connection_wrapper
+from ..db.database import PLANNING_SETTINGS, mysql_connection_wrapper
 
 planning_bp = Blueprint("planning", __name__)
 
 PLAN_COLUMNS = "id, name, draft, saved_data, saved_at, created_at, updated_at"
+ROUTING_PROFILE_KEY = "planning.routing_profile"
+
+
+def _request_point(data, key):
+    """[lat, lon] aus dem Request-Body, None bei fehlendem oder ungültigem Wert."""
+    try:
+        lat, lon = (float(v) for v in data.get(key))
+    except (TypeError, ValueError):
+        return None
+    if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+        return None
+    return lat, lon
+
+
+def _routing_profile(cursor):
+    cursor.execute("SELECT setting_value FROM appsettings WHERE setting_key = %s", (ROUTING_PROFILE_KEY,))
+    row = cursor.fetchone()
+    profile = str(row["setting_value"] or "").strip() if row else ""
+    return profile or PLANNING_SETTINGS[ROUTING_PROFILE_KEY][0]
+
+
+# ── POST Route zwischen zwei Trackpunkten entlang von Wegen und Straßen ──────
+@planning_bp.route("/api/routing/segment", methods=["POST"])
+@mysql_connection_wrapper
+def api_routing_segment(cursor):
+    data = request.get_json(silent=True) or {}
+    start = _request_point(data, "from")
+    end = _request_point(data, "to")
+    if not start or not end:
+        return jsonify({"status": "error", "message": "Start- oder Zielpunkt fehlt oder ist ungültig."}), 400
+
+    profile = _routing_profile(cursor)
+    response = None
+    try:
+        response = requests.get(
+            current_app.config["BROUTER_URL"],
+            params={
+                # BRouter erwartet lon,lat
+                "lonlats": f"{start[1]},{start[0]}|{end[1]},{end[0]}",
+                "profile": profile,
+                "alternativeidx": 0,
+                "format": "geojson",
+            },
+            timeout=current_app.config["BROUTER_TIMEOUT_S"],
+        )
+        response.raise_for_status()
+        feature = response.json()["features"][0]
+    except (requests.RequestException, ValueError, KeyError, IndexError) as exc:
+        # BRouter liefert Fehler (z. B. kein Weg in der Nähe) als Klartext
+        detail = response.text.strip()[:200] if response is not None and response.text.strip() else str(exc)
+        current_app.logger.warning("Routing fehlgeschlagen (%s): %s", profile, detail)
+        return jsonify({"status": "error", "message": f"Routing fehlgeschlagen: {detail}"}), 502
+
+    # [lat, lon, Höhe] je Punkt; Höhe fehlt, wenn BRouter keine liefert
+    coords = []
+    for point in feature["geometry"]["coordinates"]:
+        coord = [round(point[1], 6), round(point[0], 6)]
+        if len(point) > 2 and point[2] is not None:
+            coord.append(round(point[2], 1))
+        coords.append(coord)
+
+    props = feature.get("properties") or {}
+    return jsonify({
+        "status": "ok",
+        "segment": {
+            "coords": coords,
+            "distance_m": int(props.get("track-length") or 0),
+            "ascent_m": int(props.get("filtered ascend") or 0),
+            "profile": profile,
+        },
+    })
 
 
 def _load_json(value):

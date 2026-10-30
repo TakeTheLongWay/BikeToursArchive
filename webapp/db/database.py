@@ -170,10 +170,15 @@ HOMEBASE_SETTINGS = {
     "homebase.zoom": ("10", "Zoomstufe der Karte auf der Tourplanungsseite"),
 }
 
+# Routing der Tourplanung über BRouter; Profile z. B. trekking, fastbike, mtb, shortest
+PLANNING_SETTINGS = {
+    "planning.routing_profile": ("trekking", "BRouter-Profil für das Routing auf der Tourplanungsseite"),
+}
 
-def _ensure_homebase_settings(cursor):
+
+def _ensure_planning_settings(cursor):
     # INSERT IGNORE: bestehende (ggf. geänderte) Werte bleiben unangetastet
-    for key, (value, description) in HOMEBASE_SETTINGS.items():
+    for key, (value, description) in {**HOMEBASE_SETTINGS, **PLANNING_SETTINGS}.items():
         cursor.execute(
             "INSERT IGNORE INTO appsettings (setting_key, setting_value, description) VALUES (%s, %s, %s)",
             (key, value, description),
@@ -234,7 +239,7 @@ def ensure_database():
         _ensure_tcx_columns(cursor)
         _ensure_calories_calc_column(cursor)
         _ensure_default_bike_trigger(cursor)
-        _ensure_homebase_settings(cursor)
+        _ensure_planning_settings(cursor)
         _ensure_tour_plans_table(cursor)
         conn.commit()
     except mysql.connector.Error as err:

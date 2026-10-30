@@ -28,6 +28,9 @@ BIKETRACKER_MAX_FILES = 10
 BIKETRACKER_DELETED_FOLDER_NAME = "Gelöscht"
 # Unterordner mit den Tourbildern/-videos (Tabelle media) für die Tourbilder-Seite
 BIKETRACKER_IMAGES_FOLDER_NAME = "images"
+# Routing-Dienst der Tourplanung (BRouter, OSM-basiert); Profil steht in den Appsettings
+BROUTER_URL = "https://brouter.de/brouter"
+BROUTER_TIMEOUT_S = 20
 
 GOAL_UI_TO_DB_KEY = {
     "annual": "goal_km_year",
@@ -79,6 +82,8 @@ class Config:
     BIKETRACKER_MAX_FILES = BIKETRACKER_MAX_FILES
     BIKETRACKER_DELETED_FOLDER_NAME = BIKETRACKER_DELETED_FOLDER_NAME
     BIKETRACKER_IMAGES_FOLDER_NAME = BIKETRACKER_IMAGES_FOLDER_NAME
+    BROUTER_URL = BROUTER_URL
+    BROUTER_TIMEOUT_S = BROUTER_TIMEOUT_S
 
     GOAL_UI_TO_DB_KEY = GOAL_UI_TO_DB_KEY
     VALID_GOAL_DB_KEYS = VALID_GOAL_DB_KEYS
