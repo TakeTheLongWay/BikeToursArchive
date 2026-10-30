@@ -138,6 +138,25 @@ def _ensure_calories_calc_column(cursor):
     print("Spalte activities.calories_calc angelegt.")
 
 
+# Homebase (Mittelpunkt und Zoomstufe der Karte auf der Tourplanungsseite); Startwert München-Zentrum
+HOMEBASE_SETTINGS = {
+    "homebase.lat": ("48.137", "Breitengrad der Homebase (Kartenmitte Tourplanung)"),
+    "homebase.lon": ("11.575", "Längengrad der Homebase (Kartenmitte Tourplanung)"),
+    "homebase.zoom": ("10", "Zoomstufe der Karte auf der Tourplanungsseite"),
+}
+
+
+def _ensure_homebase_settings(cursor):
+    # INSERT IGNORE: bestehende (ggf. geänderte) Werte bleiben unangetastet
+    for key, (value, description) in HOMEBASE_SETTINGS.items():
+        cursor.execute(
+            "INSERT IGNORE INTO appsettings (setting_key, setting_value, description) VALUES (%s, %s, %s)",
+            (key, value, description),
+        )
+        if cursor.rowcount:
+            print(f"Einstellung {key} angelegt.")
+
+
 def _ensure_default_bike_trigger(cursor):
     cursor.execute(
         """
@@ -190,6 +209,7 @@ def ensure_database():
         _ensure_tcx_columns(cursor)
         _ensure_calories_calc_column(cursor)
         _ensure_default_bike_trigger(cursor)
+        _ensure_homebase_settings(cursor)
         conn.commit()
     except mysql.connector.Error as err:
         print(f"Datenbankfehler beim Start: {err}")

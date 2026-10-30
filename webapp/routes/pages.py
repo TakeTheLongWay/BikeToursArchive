@@ -2,7 +2,7 @@ import io
 import mimetypes
 from flask import Blueprint, current_app, jsonify, render_template, request, send_file, send_from_directory
 from datetime import date, datetime
-from ..db.database import mysql_connection_wrapper
+from ..db.database import HOMEBASE_SETTINGS, mysql_connection_wrapper
 from ..services.biketracker_source import BikeTrackerSourceError, get_source
 from ..services.track_files import load_track_data, track_extension
 from ..utils import build_gpx_path, format_date_display, format_duration_hm
@@ -129,6 +129,30 @@ def diary():
 @pages_bp.route("/statistik")
 def statistics():
     return render_template("statistics.html")
+
+
+@pages_bp.route("/tourplanung")
+@mysql_connection_wrapper
+def tour_planning(cursor):
+    cursor.execute(
+        "SELECT setting_key, setting_value FROM appsettings WHERE setting_key IN (%s, %s, %s)",
+        tuple(HOMEBASE_SETTINGS),
+    )
+    values = {row["setting_key"]: row["setting_value"] for row in cursor.fetchall()}
+
+    # Fehlende oder ungültige Einträge fallen auf den Startwert zurück
+    def setting(key, convert):
+        try:
+            return convert(str(values[key]).strip().replace(",", "."))
+        except (KeyError, ValueError):
+            return convert(HOMEBASE_SETTINGS[key][0])
+
+    homebase = {
+        "lat": setting("homebase.lat", float),
+        "lon": setting("homebase.lon", float),
+        "zoom": setting("homebase.zoom", int),
+    }
+    return render_template("tour_planning.html", homebase=homebase)
 
 
 @pages_bp.route("/static/vendor/<path:filename>")
