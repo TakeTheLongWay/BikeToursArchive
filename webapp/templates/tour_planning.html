@@ -208,6 +208,17 @@
             cursor: crosshair;
         }
 
+        /* Klick auf den Track fügt einen Trackpunkt ein, Trackpunkte lassen sich verschieben */
+        #planningMap.drawing path.trackHitLine {
+            cursor: copy;
+        }
+
+        #planningMap.drawing path.trackPoint,
+        #planningMap.movingPoint,
+        #planningMap.movingPoint path {
+            cursor: move;
+        }
+
         #planningMap {
             height: calc(100vh - 84px);
             min-height: 400px;
@@ -314,6 +325,10 @@
         const DRAFT_SAVE_DELAY_MS = 800;
         const TRACK_COLOR = "#1C3F75";
         const UNROUTED_COLOR = "#c0392b";
+        // Breite der unsichtbaren Klickfläche über dem Track in Pixeln
+        const TRACK_HIT_WEIGHT = 14;
+        // Mindestbewegung in Pixeln, ab der ein gedrückter Trackpunkt verschoben statt angeklickt wird
+        const DRAG_THRESHOLD_PX = 3;
 
         const btnNew = document.getElementById("btnPlanNew");
         const btnOpen = document.getElementById("btnPlanOpen");
@@ -339,6 +354,12 @@
         let trackGeneration = 0;
         // Klicks nacheinander abarbeiten, damit jedes Segment am vorherigen Punkt ansetzt
         let routingChain = Promise.resolve();
+        // Stand des Tracks vor jeder Änderung (Setzen, Einfügen, Verschieben), für "Rückgängig"
+        let trackHistory = [];
+        // Angezeigte Linie je Segment, um sie beim Verschieben eines Trackpunkts abzublenden
+        let segmentLines = [];
+        // Gesetzt nach dem Ablegen eines verschobenen Trackpunkts: der folgende Klick setzt keinen Punkt
+        let pointDragged = false;
 
         const map = L.map("planningMap");
         L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -369,26 +390,36 @@
 
         function renderTrack() {
             trackLayer.clearLayers();
-            track.segments.forEach(seg => {
-                L.polyline(seg.coords.map(c => [c[0], c[1]]), {
+            segmentLines = track.segments.map(seg => {
+                const latlngs = seg.coords.map(c => [c[0], c[1]]);
+                const line = L.polyline(latlngs, {
                     color: seg.routed ? TRACK_COLOR : UNROUTED_COLOR,
                     weight: 4,
                     opacity: 0.85,
                     dashArray: seg.routed ? null : "6 6",
                     interactive: false
                 }).addTo(trackLayer);
+                if (plan) {
+                    // Breite, unsichtbare Linie darüber: ein Klick auf den Track fügt dort einen Trackpunkt ein
+                    L.polyline(latlngs, { weight: TRACK_HIT_WEIGHT, opacity: 0, className: "trackHitLine" })
+                        .on("click", event => onTrackClick(event, seg))
+                        .addTo(trackLayer);
+                }
+                return line;
             });
-            // Klicks gehen durch die Marker an die Karte, damit überall Punkte gesetzt werden können
+            // Ein Klick ohne Verschieben geht durch den Marker an die Karte und setzt dort einen Punkt
             track.points.forEach((pt, i) => {
                 const isStart = i === 0;
-                L.circleMarker(pt, {
+                const marker = L.circleMarker(pt, {
                     radius: isStart ? 7 : 5,
                     color: isStart ? "#1e8449" : TRACK_COLOR,
                     weight: 2,
                     fillColor: isStart ? "#27ae60" : "#fff",
                     fillOpacity: 1,
-                    interactive: false
+                    interactive: !!plan,
+                    className: "trackPoint"
                 }).addTo(trackLayer);
+                if (plan) marker.on("mousedown", event => startPointDrag(event, pt, marker));
             });
         }
 
@@ -396,6 +427,7 @@
         function loadTrack() {
             trackGeneration++;
             routingChain = Promise.resolve();
+            trackHistory = [];
             const saved = plan && plan.draft && plan.draft.track;
             const activityKnown = saved && [...selActivity.options].some(o => o.value === saved.activity);
             track = {
@@ -472,35 +504,202 @@
             return Object.assign({ routed: true }, data.segment);
         }
 
+        function roundPoint(latlng) {
+            return [Math.round(latlng.lat * 1e6) / 1e6, Math.round(latlng.lng * 1e6) / 1e6];
+        }
+
+        // Liefert { segment, warning }; ohne Route wird als gestrichelte Luftlinie verbunden,
+        // damit der Punkt nicht verloren geht
+        async function connectPoints(from, to) {
+            try {
+                return { segment: await routeSegment(from, to, track.activity), warning: null };
+            } catch (e) {
+                console.error("Fehler beim Routing:", e);
+                return {
+                    segment: {
+                        coords: [from, to],
+                        distance_m: Math.round(map.distance(from, to)),
+                        activity: track.activity,
+                        routed: false
+                    },
+                    warning: "Keine Route gefunden – Luftlinie gesetzt"
+                };
+            }
+        }
+
+        function polylineLength(coords) {
+            let length = 0;
+            for (let j = 1; j < coords.length; j++) length += map.distance(coords[j - 1], coords[j]);
+            return length;
+        }
+
+        // Teilt ein Segment an der Stelle des Verlaufs, die latlng am nächsten liegt. Der Verlauf
+        // bleibt unverändert, deshalb ist kein erneutes Routing nötig. null, wenn nicht teilbar.
+        function splitSegment(segment, latlng) {
+            const coords = segment.coords;
+            if (coords.length < 2) return null;
+            const clicked = map.latLngToLayerPoint(latlng);
+            let best = null;
+            for (let j = 0; j < coords.length - 1; j++) {
+                const a = map.latLngToLayerPoint([coords[j][0], coords[j][1]]);
+                const b = map.latLngToLayerPoint([coords[j + 1][0], coords[j + 1][1]]);
+                const onLine = L.LineUtil.closestPointOnSegment(clicked, a, b);
+                const dist = clicked.distanceTo(onLine);
+                if (!best || dist < best.dist) best = { dist: dist, index: j, layerPoint: onLine };
+            }
+            const point = roundPoint(map.layerPointToLatLng(best.layerPoint));
+            const a = coords[best.index];
+            const b = coords[best.index + 1];
+            const coord = point.slice();
+            // Höhe zwischen den beiden Nachbarpunkten des Verlaufs interpolieren
+            if (a.length > 2 && b.length > 2) {
+                const total = map.distance(a, b);
+                const t = total ? map.distance(a, point) / total : 0;
+                coord.push(Math.round((a[2] + (b[2] - a[2]) * t) * 10) / 10);
+            }
+            const beforeCoords = coords.slice(0, best.index + 1).concat([coord]);
+            const afterCoords = [coord].concat(coords.slice(best.index + 1));
+
+            // Distanz und Anstieg des Segments anteilig nach Länge aufteilen
+            const lengthBefore = polylineLength(beforeCoords);
+            const lengthAfter = polylineLength(afterCoords);
+            const share = (lengthBefore + lengthAfter) ? lengthBefore / (lengthBefore + lengthAfter) : 0.5;
+            const part = (value, ratio) => value === undefined ? undefined : Math.round(value * ratio);
+            return {
+                point: point,
+                before: Object.assign({}, segment, {
+                    coords: beforeCoords,
+                    distance_m: part(segment.distance_m, share),
+                    ascent_m: part(segment.ascent_m, share)
+                }),
+                after: Object.assign({}, segment, {
+                    coords: afterCoords,
+                    distance_m: part(segment.distance_m, 1 - share),
+                    ascent_m: part(segment.ascent_m, 1 - share)
+                })
+            };
+        }
+
+        function insertTrackPoint(segment, latlng, generation) {
+            if (generation !== trackGeneration) return;
+            // Index erst jetzt bestimmen, vorherige Aktionen der Kette können ihn verschoben haben
+            const index = track.segments.indexOf(segment);
+            if (index < 0) return;
+            const split = splitSegment(segment, latlng);
+            if (!split) return;
+            rememberTrack();
+            track.segments.splice(index, 1, split.before, split.after);
+            track.points.splice(index + 1, 0, split.point);
+            renderTrack();
+            updateStatus();
+            scheduleDraftSave();
+        }
+
+        function onTrackClick(event, segment) {
+            // Der Klick soll nicht zusätzlich am Trackende einen Punkt setzen
+            L.DomEvent.stopPropagation(event);
+            if (pointDragged) {
+                pointDragged = false;
+                return;
+            }
+            if (!openPanel.hidden || !plan) return;
+            const generation = trackGeneration;
+            routingChain = routingChain.then(() => insertTrackPoint(segment, event.latlng, generation));
+        }
+
+        // Verschiebt den Trackpunkt pointRef nach latlng und routet die angrenzenden Segmente neu
+        async function moveTrackPoint(pointRef, latlng, generation) {
+            if (generation !== trackGeneration) return;
+            const index = track.points.indexOf(pointRef);
+            if (index < 0) {
+                renderTrack();
+                return;
+            }
+            const point = roundPoint(latlng);
+            const prev = index > 0 ? track.points[index - 1] : null;
+            const next = index < track.points.length - 1 ? track.points[index + 1] : null;
+            if (prev || next) updateStatus("Route wird berechnet …");
+            const [before, after] = await Promise.all([
+                prev ? connectPoints(prev, point) : null,
+                next ? connectPoints(point, next) : null
+            ]);
+            // Session wurde während des Routings gewechselt
+            if (generation !== trackGeneration) return;
+            rememberTrack();
+            track.points[index] = point;
+            if (before) track.segments[index - 1] = before.segment;
+            if (after) track.segments[index] = after.segment;
+            renderTrack();
+            updateStatus((before && before.warning) || (after && after.warning));
+            scheduleDraftSave();
+        }
+
+        // Gedrückter Trackpunkt folgt der Maus; beim Loslassen wird er dort abgelegt
+        function startPointDrag(event, pointRef, marker) {
+            if (event.originalEvent.button !== 0) return;
+            // Karte nicht mitschieben und keinen Text markieren
+            map.dragging.disable();
+            event.originalEvent.preventDefault();
+            const container = map.getContainer();
+            const startPos = map.mouseEventToContainerPoint(event.originalEvent);
+            const index = track.points.indexOf(pointRef);
+            const prev = index > 0 ? track.points[index - 1] : null;
+            const next = index < track.points.length - 1 ? track.points[index + 1] : null;
+            let preview = null;
+
+            const onMove = (e) => {
+                const pos = map.mouseEventToContainerPoint(e);
+                if (!preview) {
+                    if (pos.distanceTo(startPos) < DRAG_THRESHOLD_PX) return;
+                    container.classList.add("movingPoint");
+                    // Bisherige Verbindungen abblenden, bis die neue Route berechnet ist
+                    [index - 1, index].forEach(s => segmentLines[s] && segmentLines[s].setStyle({ opacity: 0.25 }));
+                    preview = L.polyline([], {
+                        color: TRACK_COLOR,
+                        weight: 3,
+                        dashArray: "4 6",
+                        interactive: false
+                    }).addTo(trackLayer);
+                }
+                const latlng = map.containerPointToLatLng(pos);
+                marker.setLatLng(latlng);
+                preview.setLatLngs([prev, latlng, next].filter(Boolean));
+            };
+
+            const onUp = (e) => {
+                document.removeEventListener("mousemove", onMove);
+                document.removeEventListener("mouseup", onUp);
+                map.dragging.enable();
+                container.classList.remove("movingPoint");
+                // Nur angeklickt: der Klick geht wie bisher an die Karte
+                if (!preview) return;
+                pointDragged = true;
+                const latlng = map.containerPointToLatLng(map.mouseEventToContainerPoint(e));
+                const generation = trackGeneration;
+                routingChain = routingChain.then(() => moveTrackPoint(pointRef, latlng, generation));
+            };
+
+            document.addEventListener("mousemove", onMove);
+            document.addEventListener("mouseup", onUp);
+        }
+
         async function addTrackPoint(latlng, generation) {
             if (generation !== trackGeneration) return;
-            const point = [Math.round(latlng.lat * 1e6) / 1e6, Math.round(latlng.lng * 1e6) / 1e6];
+            const point = roundPoint(latlng);
 
             if (track.points.length) {
                 const from = track.points[track.points.length - 1];
                 updateStatus("Route wird berechnet …");
-                let segment;
-                let warning = null;
-                try {
-                    segment = await routeSegment(from, point, track.activity);
-                } catch (e) {
-                    // Ohne Route als gestrichelte Luftlinie verbinden, damit der Punkt nicht verloren geht
-                    console.error("Fehler beim Routing:", e);
-                    warning = "Keine Route gefunden – Luftlinie gesetzt";
-                    segment = {
-                        coords: [from, point],
-                        distance_m: Math.round(map.distance(from, point)),
-                        activity: track.activity,
-                        routed: false
-                    };
-                }
+                const { segment, warning } = await connectPoints(from, point);
                 // Session wurde während des Routings gewechselt
                 if (generation !== trackGeneration) return;
+                rememberTrack();
                 track.segments.push(segment);
                 track.points.push(point);
                 renderTrack();
                 updateStatus(warning);
             } else {
+                rememberTrack();
                 track.points.push(point);
                 renderTrack();
                 updateStatus();
@@ -508,11 +707,23 @@
             scheduleDraftSave();
         }
 
-        function undoLastTrackPoint(generation) {
+        // Punkte und Segmente werden nur ersetzt, nie verändert, flache Kopien genügen daher
+        function rememberTrack() {
+            trackHistory.push({ points: track.points.slice(), segments: track.segments.slice() });
+        }
+
+        function undoTrackChange(generation) {
             if (generation !== trackGeneration || !track.points.length) return;
-            track.points.pop();
-            // Mit dem Punkt fällt das Segment weg, das zu ihm führte
-            if (track.segments.length > Math.max(track.points.length - 1, 0)) track.segments.pop();
+            const previous = trackHistory.pop();
+            if (previous) {
+                track.points = previous.points;
+                track.segments = previous.segments;
+            } else {
+                // Nach dem Laden einer Session gibt es keinen Verlauf: letzten Punkt entfernen
+                track.points.pop();
+                // Mit dem Punkt fällt das Segment weg, das zu ihm führte
+                if (track.segments.length > Math.max(track.points.length - 1, 0)) track.segments.pop();
+            }
             renderTrack();
             updateStatus();
             scheduleDraftSave();
@@ -521,7 +732,7 @@
         function requestUndo() {
             if (!plan) return;
             const generation = trackGeneration;
-            routingChain = routingChain.then(() => undoLastTrackPoint(generation));
+            routingChain = routingChain.then(() => undoTrackChange(generation));
         }
 
         btnUndo.addEventListener("click", requestUndo);
@@ -540,7 +751,15 @@
             scheduleDraftSave();
         });
 
+        // Jeder neue Mausklick beginnt ohne Nachwirkung eines vorherigen Verschiebens
+        map.on("mousedown", () => { pointDragged = false; });
+
         map.on("click", (event) => {
+            // Klick nach dem Ablegen eines verschobenen Trackpunkts
+            if (pointDragged) {
+                pointDragged = false;
+                return;
+            }
             // Klick schließt nur die offene Auswahlliste von "Öffnen"
             if (!openPanel.hidden) return;
             if (!plan) {
