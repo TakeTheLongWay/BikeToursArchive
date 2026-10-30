@@ -25,6 +25,21 @@ def _request_point(data, key):
     return lat, lon
 
 
+def _request_nogos(data):
+    """Sperrzonen [[lat, lon, radius_m], ...] aus dem Request-Body als BRouter-Parameter, None bei ungültigem Wert."""
+    zones = []
+    for zone in data.get("avoid") or []:
+        try:
+            lat, lon, radius = (float(v) for v in zone)
+        except (TypeError, ValueError):
+            return None
+        if not (-90 <= lat <= 90 and -180 <= lon <= 180 and 0 < radius <= 1000):
+            return None
+        # BRouter erwartet lon,lat,Radius in Metern
+        zones.append(f"{lon},{lat},{round(radius)}")
+    return "|".join(zones)
+
+
 def _routing_profile(cursor, activity):
     key = ROUTING_PROFILE_KEY.format(activity=activity)
     cursor.execute("SELECT setting_value FROM appsettings WHERE setting_key = %s", (key,))
@@ -42,6 +57,9 @@ def api_routing_segment(cursor):
     end = _request_point(data, "to")
     if not start or not end:
         return jsonify({"status": "error", "message": "Start- oder Zielpunkt fehlt oder ist ungültig."}), 400
+    nogos = _request_nogos(data)
+    if nogos is None:
+        return jsonify({"status": "error", "message": "Sperrzone ist ungültig."}), 400
 
     activities = current_app.config["PLANNING_ACTIVITIES"]
     activity = data.get("activity") or next(iter(activities))
@@ -49,17 +67,20 @@ def api_routing_segment(cursor):
         return jsonify({"status": "error", "message": f"Unbekannte Aktivität: {activity}"}), 400
 
     profile = _routing_profile(cursor, activity)
+    params = {
+        # BRouter erwartet lon,lat
+        "lonlats": f"{start[1]},{start[0]}|{end[1]},{end[0]}",
+        "profile": profile,
+        "alternativeidx": 0,
+        "format": "geojson",
+    }
+    if nogos:
+        params["nogos"] = nogos
     response = None
     try:
         response = requests.get(
             current_app.config["BROUTER_URL"],
-            params={
-                # BRouter erwartet lon,lat
-                "lonlats": f"{start[1]},{start[0]}|{end[1]},{end[0]}",
-                "profile": profile,
-                "alternativeidx": 0,
-                "format": "geojson",
-            },
+            params=params,
             timeout=current_app.config["BROUTER_TIMEOUT_S"],
         )
         response.raise_for_status()
