@@ -255,6 +255,13 @@
                 </svg>
                 Speichern
             </button>
+            <button class="toolButton" id="btnPlanExport" title="Track als GPX-Datei herunterladen" disabled>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 3v12"/><path d="M7 10l5 5 5-5"/>
+                    <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>
+                </svg>
+                Export
+            </button>
         </div>
         <div class="toolGroup" id="toolGroupEdit">
             <button class="toolButton" id="btnTrackUndo" title="Letzten Trackpunkt entfernen (Strg+Z)" disabled>
@@ -315,6 +322,7 @@
         const btnDelete = document.getElementById("btnPlanDelete");
         const selActivity = document.getElementById("selPlanActivity");
         const btnUndo = document.getElementById("btnTrackUndo");
+        const btnExport = document.getElementById("btnPlanExport");
         const nameDialog = document.getElementById("planNameDialog");
         const nameInput = document.getElementById("planNameInput");
         // Voreinstellung ist die erste Aktivität der Auswahl (Fahrrad)
@@ -405,6 +413,7 @@
             btnDelete.disabled = !plan;
             selActivity.disabled = !plan;
             btnUndo.disabled = !plan || !track.points.length;
+            btnExport.disabled = !plan || !track.points.length;
             statusEl.classList.toggle("dirty", !!(plan && plan.dirty));
             if (message) {
                 statusEl.textContent = message;
@@ -699,6 +708,22 @@
                 console.error("Fehler beim Löschen der Planung:", e);
                 updateStatus("Löschen fehlgeschlagen");
             }
+        });
+
+        // Export: erst ausstehende Routings und die Sicherung abwarten, damit die Datei
+        // dem angezeigten Track entspricht; der Browser legt sie im Download-Verzeichnis ab
+        btnExport.addEventListener("click", async () => {
+            if (!plan || !track.points.length) return;
+            const generation = trackGeneration;
+            await routingChain;
+            if (generation !== trackGeneration) return;
+            if (draftTimer) await saveDraftNow();
+            const link = document.createElement("a");
+            link.href = "/api/tour-plans/" + plan.id + "/gpx";
+            link.download = "";
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
         });
 
         // Beim Verlassen der Seite eine noch ausstehende Sicherung nachholen

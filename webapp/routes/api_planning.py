@@ -1,8 +1,10 @@
+import io
 import json
 from datetime import datetime
 
+import gpxpy.gpx
 import requests
-from flask import Blueprint, current_app, jsonify, request
+from flask import Blueprint, current_app, jsonify, request, send_file
 
 from ..db.database import PLANNING_SETTINGS, mysql_connection_wrapper
 
@@ -214,6 +216,59 @@ def api_tour_plan_save(cursor, plan_id):
         (plan_id,),
     )
     return jsonify({"status": "ok", "plan": _plan_to_dict(_fetch_plan(cursor, plan_id))})
+
+
+def _track_to_gpx(name, track, activity_label):
+    """GPX mit einem Track aus dem Arbeitsstand: Segmentkoordinaten aneinandergereiht, ohne Punktdubletten."""
+    gpx = gpxpy.gpx.GPX()
+    gpx.creator = "MyBikeLog"
+    gpx.name = name
+    gpx_track = gpxpy.gpx.GPXTrack(name=name)
+    gpx_track.type = activity_label
+    gpx_segment = gpxpy.gpx.GPXTrackSegment()
+    gpx_track.segments.append(gpx_segment)
+    gpx.tracks.append(gpx_track)
+
+    # Ohne Segmente (nur Startpunkt) die gesetzten Punkte exportieren
+    segments = track.get("segments") or []
+    coords = [c for seg in segments for c in (seg.get("coords") or [])] or (track.get("points") or [])
+
+    last = None
+    for coord in coords:
+        lat, lon = coord[0], coord[1]
+        if last == (lat, lon):
+            continue
+        elevation = coord[2] if len(coord) > 2 else None
+        gpx_segment.points.append(gpxpy.gpx.GPXTrackPoint(lat, lon, elevation=elevation))
+        last = (lat, lon)
+    return gpx.to_xml()
+
+
+# ── GET Arbeitsstand als GPX-Datei herunterladen, Dateiname = Trackname ──────
+@planning_bp.route("/api/tour-plans/<int:plan_id>/gpx", methods=["GET"])
+@mysql_connection_wrapper
+def api_tour_plan_gpx(cursor, plan_id):
+    row = _fetch_plan(cursor, plan_id)
+    if not row:
+        return jsonify({"status": "error", "message": "Planung nicht gefunden."}), 404
+
+    plan = _plan_to_dict(row)
+    track = plan["draft"].get("track") or {}
+    if not track.get("points"):
+        return jsonify({"status": "error", "message": "Der Track enthält noch keine Punkte."}), 400
+
+    activities = current_app.config["PLANNING_ACTIVITIES"]
+    activity_label = activities.get(track.get("activity"), next(iter(activities.values())))
+    xml = _track_to_gpx(plan["name"], track, activity_label)
+
+    # Dateiname aus Trackname ableiten (Sonderzeichen bereinigen)
+    safe_name = "".join(c if c.isalnum() or c in " _-" else "_" for c in plan["name"]).strip() or f"planung_{plan_id}"
+    return send_file(
+        io.BytesIO(xml.encode("utf-8")),
+        as_attachment=True,
+        download_name=f"{safe_name}.gpx",
+        mimetype="application/gpx+xml",
+    )
 
 
 # ── DELETE Session entfernen; liefert die danach aktuelle Session (oder null) ─
