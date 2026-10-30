@@ -31,6 +31,13 @@ BIKETRACKER_IMAGES_FOLDER_NAME = "images"
 # Routing-Dienst der Tourplanung (BRouter, OSM-basiert); Profil steht in den Appsettings
 BROUTER_URL = "https://brouter.de/brouter"
 BROUTER_TIMEOUT_S = 20
+# Aktivitäten der Tourplanung (Auswahl in der Toolbar) -> Anzeigename; erste ist voreingestellt.
+# Das BRouter-Profil je Aktivität steht in den Appsettings unter planning.routing_profile.<key>
+PLANNING_ACTIVITIES = {
+    "bike": "Fahrrad",
+    "mtb": "Mtb",
+    "hiking": "Wandern",
+}
 
 GOAL_UI_TO_DB_KEY = {
     "annual": "goal_km_year",
@@ -84,6 +91,7 @@ class Config:
     BIKETRACKER_IMAGES_FOLDER_NAME = BIKETRACKER_IMAGES_FOLDER_NAME
     BROUTER_URL = BROUTER_URL
     BROUTER_TIMEOUT_S = BROUTER_TIMEOUT_S
+    PLANNING_ACTIVITIES = PLANNING_ACTIVITIES
 
     GOAL_UI_TO_DB_KEY = GOAL_UI_TO_DB_KEY
     VALID_GOAL_DB_KEYS = VALID_GOAL_DB_KEYS

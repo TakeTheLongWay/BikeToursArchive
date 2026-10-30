@@ -9,7 +9,7 @@ from ..db.database import PLANNING_SETTINGS, mysql_connection_wrapper
 planning_bp = Blueprint("planning", __name__)
 
 PLAN_COLUMNS = "id, name, draft, saved_data, saved_at, created_at, updated_at"
-ROUTING_PROFILE_KEY = "planning.routing_profile"
+ROUTING_PROFILE_KEY = "planning.routing_profile.{activity}"
 
 
 def _request_point(data, key):
@@ -23,11 +23,12 @@ def _request_point(data, key):
     return lat, lon
 
 
-def _routing_profile(cursor):
-    cursor.execute("SELECT setting_value FROM appsettings WHERE setting_key = %s", (ROUTING_PROFILE_KEY,))
+def _routing_profile(cursor, activity):
+    key = ROUTING_PROFILE_KEY.format(activity=activity)
+    cursor.execute("SELECT setting_value FROM appsettings WHERE setting_key = %s", (key,))
     row = cursor.fetchone()
     profile = str(row["setting_value"] or "").strip() if row else ""
-    return profile or PLANNING_SETTINGS[ROUTING_PROFILE_KEY][0]
+    return profile or PLANNING_SETTINGS[key][0]
 
 
 # ── POST Route zwischen zwei Trackpunkten entlang von Wegen und Straßen ──────
@@ -40,7 +41,12 @@ def api_routing_segment(cursor):
     if not start or not end:
         return jsonify({"status": "error", "message": "Start- oder Zielpunkt fehlt oder ist ungültig."}), 400
 
-    profile = _routing_profile(cursor)
+    activities = current_app.config["PLANNING_ACTIVITIES"]
+    activity = data.get("activity") or next(iter(activities))
+    if activity not in activities:
+        return jsonify({"status": "error", "message": f"Unbekannte Aktivität: {activity}"}), 400
+
+    profile = _routing_profile(cursor, activity)
     response = None
     try:
         response = requests.get(
@@ -77,6 +83,7 @@ def api_routing_segment(cursor):
             "coords": coords,
             "distance_m": int(props.get("track-length") or 0),
             "ascent_m": int(props.get("filtered ascend") or 0),
+            "activity": activity,
             "profile": profile,
         },
     })
@@ -184,6 +191,20 @@ def api_tour_plan_update_draft(cursor, plan_id):
 @planning_bp.route("/api/tour-plans/<int:plan_id>/save", methods=["POST"])
 @mysql_connection_wrapper
 def api_tour_plan_save(cursor, plan_id):
+    row = _fetch_plan(cursor, plan_id)
+    if not row:
+        return jsonify({"status": "error", "message": "Planung nicht gefunden."}), 404
+
+    # Beim ersten Speichern bekommt der Track einen Namen; danach ist er optional
+    data = request.get_json(silent=True) or {}
+    name = str(data.get("name") or "").strip()
+    if not name and not row["saved_at"]:
+        return jsonify({"status": "error", "message": "Bitte einen Namen für den Track angeben."}), 400
+    if len(name) > 255:
+        return jsonify({"status": "error", "message": "Der Name ist zu lang (max. 255 Zeichen)."}), 400
+    if name:
+        cursor.execute("UPDATE tour_plans SET name = %s WHERE id = %s", (name, plan_id))
+
     draft = _request_draft()
     if draft is not None:
         cursor.execute("UPDATE tour_plans SET draft = %s WHERE id = %s", (json.dumps(draft), plan_id))
@@ -192,10 +213,7 @@ def api_tour_plan_save(cursor, plan_id):
         "UPDATE tour_plans SET saved_data = draft, saved_at = NOW(), updated_at = NOW(3) WHERE id = %s",
         (plan_id,),
     )
-    row = _fetch_plan(cursor, plan_id)
-    if not row:
-        return jsonify({"status": "error", "message": "Planung nicht gefunden."}), 404
-    return jsonify({"status": "ok", "plan": _plan_to_dict(row)})
+    return jsonify({"status": "ok", "plan": _plan_to_dict(_fetch_plan(cursor, plan_id))})
 
 
 # ── DELETE Session entfernen; liefert die danach aktuelle Session (oder null) ─

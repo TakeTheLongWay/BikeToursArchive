@@ -60,6 +60,23 @@
             cursor: default;
         }
 
+        .toolSelect {
+            height: 28px;
+            padding: 0 6px;
+            border: 1px solid #dde3ee;
+            border-radius: 6px;
+            background: #fff;
+            color: #1C3F75;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .toolSelect:disabled {
+            color: #a8b3c6;
+            cursor: default;
+        }
+
         .toolButton svg {
             width: 16px;
             height: 16px;
@@ -139,6 +156,58 @@
             color: #b9770e;
         }
 
+        /* ── Namensdialog beim ersten Speichern ── */
+        #planNameDialog {
+            width: 340px;
+            padding: 16px;
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+        }
+
+        #planNameDialog::backdrop {
+            background: rgba(0,0,0,0.25);
+        }
+
+        #planNameDialog label {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #1C3F75;
+        }
+
+        #planNameInput {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 6px 8px;
+            border: 1px solid #dde3ee;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .dialogButtons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 6px;
+            margin-top: 12px;
+        }
+
+        .dialogButtons button {
+            padding: 6px 14px;
+            font-size: 13px;
+        }
+
+        .dialogButtons .cancel {
+            background-color: #e8eef8;
+            color: #1C3F75;
+        }
+
+        /* Fadenkreuz, solange Trackpunkte gesetzt werden können */
+        #planningMap.drawing.leaflet-grab {
+            cursor: crosshair;
+        }
+
         #planningMap {
             height: calc(100vh - 84px);
             min-height: 400px;
@@ -187,6 +256,22 @@
                 Speichern
             </button>
         </div>
+        <div class="toolGroup" id="toolGroupEdit">
+            <button class="toolButton" id="btnTrackUndo" title="Letzten Trackpunkt entfernen (Strg+Z)" disabled>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 14L4 9l5-5"/>
+                    <path d="M4 9h11a5 5 0 0 1 0 10h-3"/>
+                </svg>
+                Rückgängig
+            </button>
+        </div>
+        <div class="toolGroup" id="toolGroupActivity">
+            <select class="toolSelect" id="selPlanActivity" title="Aktivität, für die der Track geroutet wird" disabled>
+                {% for key, label in activities.items() %}
+                <option value="{{ key }}">{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
         <div class="toolGroup" id="toolGroupDelete">
             <button class="toolButton danger" id="btnPlanDelete" title="Aktuelle Planung löschen" disabled>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -203,34 +288,61 @@
 
     <div id="planningMap"></div>
 
+    <dialog id="planNameDialog">
+        <form method="dialog">
+            <label for="planNameInput">Name des Tracks</label>
+            <input id="planNameInput" maxlength="255" required pattern=".*\S.*" autocomplete="off">
+            <div class="dialogButtons">
+                <button type="button" class="cancel" id="btnPlanNameCancel">Abbrechen</button>
+                <button type="submit" value="ok">Speichern</button>
+            </div>
+        </form>
+    </dialog>
+
 </div>
 
 <script>
     window.onload = async function() {
         const homebase = {{ homebase|tojson }};
         const DRAFT_SAVE_DELAY_MS = 800;
+        const TRACK_COLOR = "#1C3F75";
+        const UNROUTED_COLOR = "#c0392b";
 
         const btnNew = document.getElementById("btnPlanNew");
         const btnOpen = document.getElementById("btnPlanOpen");
         const openPanel = document.getElementById("planOpenPanel");
         const btnSave = document.getElementById("btnPlanSave");
         const btnDelete = document.getElementById("btnPlanDelete");
+        const selActivity = document.getElementById("selPlanActivity");
+        const btnUndo = document.getElementById("btnTrackUndo");
+        const nameDialog = document.getElementById("planNameDialog");
+        const nameInput = document.getElementById("planNameInput");
+        // Voreinstellung ist die erste Aktivität der Auswahl (Fahrrad)
+        const DEFAULT_ACTIVITY = selActivity.options[0].value;
         const statusEl = document.getElementById("planStatus");
 
         // Aktuelle Planungssession; null = noch keine angelegt
         let plan = null;
         let draftTimer = null;
+        // Track der Session: activity = Aktivität, für die geroutet wird,
+        // points = gesetzte Trackpunkte [lat, lon], segments[i] = Verbindung von points[i] nach points[i + 1]
+        let track = { activity: DEFAULT_ACTIVITY, points: [], segments: [] };
+        // Wird bei jedem Sessionwechsel erhöht; verwirft Routing-Antworten der vorherigen Session
+        let trackGeneration = 0;
+        // Klicks nacheinander abarbeiten, damit jedes Segment am vorherigen Punkt ansetzt
+        let routingChain = Promise.resolve();
 
         const map = L.map("planningMap");
         L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
             attribution: "&copy; OpenStreetMap contributors"
         }).addTo(map);
+        const trackLayer = L.layerGroup().addTo(map);
 
         function homebaseView() {
             return { lat: homebase.lat, lon: homebase.lon, zoom: homebase.zoom };
         }
 
-        // Arbeitsstand der Session; bisher nur der Kartenausschnitt
+        // Arbeitsstand der Session: Kartenausschnitt und Track
         function currentDraft() {
             const center = map.getCenter();
             return {
@@ -238,20 +350,71 @@
                     lat: Math.round(center.lat * 1e6) / 1e6,
                     lon: Math.round(center.lng * 1e6) / 1e6,
                     zoom: map.getZoom()
-                }
+                },
+                track: track
             };
+        }
+
+        function trackDistanceKm() {
+            return track.segments.reduce((sum, seg) => sum + (seg.distance_m || 0), 0) / 1000;
+        }
+
+        function renderTrack() {
+            trackLayer.clearLayers();
+            track.segments.forEach(seg => {
+                L.polyline(seg.coords.map(c => [c[0], c[1]]), {
+                    color: seg.routed ? TRACK_COLOR : UNROUTED_COLOR,
+                    weight: 4,
+                    opacity: 0.85,
+                    dashArray: seg.routed ? null : "6 6",
+                    interactive: false
+                }).addTo(trackLayer);
+            });
+            // Klicks gehen durch die Marker an die Karte, damit überall Punkte gesetzt werden können
+            track.points.forEach((pt, i) => {
+                const isStart = i === 0;
+                L.circleMarker(pt, {
+                    radius: isStart ? 7 : 5,
+                    color: isStart ? "#1e8449" : TRACK_COLOR,
+                    weight: 2,
+                    fillColor: isStart ? "#27ae60" : "#fff",
+                    fillOpacity: 1,
+                    interactive: false
+                }).addTo(trackLayer);
+            });
+        }
+
+        // Track der (neu) geladenen Session übernehmen und anzeigen
+        function loadTrack() {
+            trackGeneration++;
+            routingChain = Promise.resolve();
+            const saved = plan && plan.draft && plan.draft.track;
+            const activityKnown = saved && [...selActivity.options].some(o => o.value === saved.activity);
+            track = {
+                activity: activityKnown ? saved.activity : DEFAULT_ACTIVITY,
+                points: (saved && Array.isArray(saved.points)) ? saved.points : [],
+                segments: (saved && Array.isArray(saved.segments)) ? saved.segments : []
+            };
+            selActivity.value = track.activity;
+            renderTrack();
+            map.getContainer().classList.toggle("drawing", !!plan);
         }
 
         function updateStatus(message) {
             btnSave.disabled = !plan;
             btnDelete.disabled = !plan;
+            selActivity.disabled = !plan;
+            btnUndo.disabled = !plan || !track.points.length;
             statusEl.classList.toggle("dirty", !!(plan && plan.dirty));
             if (message) {
                 statusEl.textContent = message;
             } else if (!plan) {
                 statusEl.textContent = "Keine Planung – mit „Neu“ beginnen";
             } else {
-                statusEl.textContent = plan.name + " · " + (plan.dirty ? "ungespeicherte Änderungen" : "gespeichert");
+                const distance = track.segments.length
+                    ? " · " + trackDistanceKm().toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + " km"
+                    : (track.points.length ? "" : " · Startpunkt per Klick in die Karte setzen");
+                statusEl.textContent = plan.name + distance + " · " + (plan.dirty ? "ungespeicherte Änderungen" : "gespeichert");
             }
         }
 
@@ -287,6 +450,98 @@
             draftTimer = setTimeout(saveDraftNow, DRAFT_SAVE_DELAY_MS);
         }
 
+        async function routeSegment(from, to, activity) {
+            const response = await fetch("/api/routing/segment", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ from: from, to: to, activity: activity })
+            });
+            const data = await response.json();
+            if (!response.ok || data.status !== "ok") {
+                throw new Error(data.message || data.error || ("HTTP " + response.status));
+            }
+            return Object.assign({ routed: true }, data.segment);
+        }
+
+        async function addTrackPoint(latlng, generation) {
+            if (generation !== trackGeneration) return;
+            const point = [Math.round(latlng.lat * 1e6) / 1e6, Math.round(latlng.lng * 1e6) / 1e6];
+
+            if (track.points.length) {
+                const from = track.points[track.points.length - 1];
+                updateStatus("Route wird berechnet …");
+                let segment;
+                let warning = null;
+                try {
+                    segment = await routeSegment(from, point, track.activity);
+                } catch (e) {
+                    // Ohne Route als gestrichelte Luftlinie verbinden, damit der Punkt nicht verloren geht
+                    console.error("Fehler beim Routing:", e);
+                    warning = "Keine Route gefunden – Luftlinie gesetzt";
+                    segment = {
+                        coords: [from, point],
+                        distance_m: Math.round(map.distance(from, point)),
+                        activity: track.activity,
+                        routed: false
+                    };
+                }
+                // Session wurde während des Routings gewechselt
+                if (generation !== trackGeneration) return;
+                track.segments.push(segment);
+                track.points.push(point);
+                renderTrack();
+                updateStatus(warning);
+            } else {
+                track.points.push(point);
+                renderTrack();
+                updateStatus();
+            }
+            scheduleDraftSave();
+        }
+
+        function undoLastTrackPoint(generation) {
+            if (generation !== trackGeneration || !track.points.length) return;
+            track.points.pop();
+            // Mit dem Punkt fällt das Segment weg, das zu ihm führte
+            if (track.segments.length > Math.max(track.points.length - 1, 0)) track.segments.pop();
+            renderTrack();
+            updateStatus();
+            scheduleDraftSave();
+        }
+
+        function requestUndo() {
+            if (!plan) return;
+            const generation = trackGeneration;
+            routingChain = routingChain.then(() => undoLastTrackPoint(generation));
+        }
+
+        btnUndo.addEventListener("click", requestUndo);
+
+        document.addEventListener("keydown", (event) => {
+            const inField = /^(INPUT|SELECT|TEXTAREA)$/.test(event.target.tagName);
+            if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z" && !inField && !nameDialog.open) {
+                event.preventDefault();
+                requestUndo();
+            }
+        });
+
+        selActivity.addEventListener("change", () => {
+            if (!plan) return;
+            track.activity = selActivity.value;
+            scheduleDraftSave();
+        });
+
+        map.on("click", (event) => {
+            // Klick schließt nur die offene Auswahlliste von "Öffnen"
+            if (!openPanel.hidden) return;
+            if (!plan) {
+                updateStatus("Zum Zeichnen zuerst mit „Neu“ eine Planung beginnen");
+                return;
+            }
+            const generation = trackGeneration;
+            routingChain = routingChain.then(() => addTrackPoint(event.latlng, generation));
+        });
+
         btnNew.addEventListener("click", async () => {
             if (plan && plan.dirty && !confirm("Die aktuelle Planung hat ungespeicherte Änderungen. Trotzdem eine neue Planung beginnen?")) {
                 return;
@@ -296,6 +551,7 @@
             try {
                 const view = homebaseView();
                 plan = await api("/api/tour-plans", "POST", { draft: { map: view } });
+                loadTrack();
                 map.setView([view.lat, view.lon], view.zoom);
                 updateStatus();
             } catch (e) {
@@ -323,6 +579,7 @@
             if (draftTimer) await saveDraftNow();
             try {
                 plan = await api("/api/tour-plans/" + planId + "/open", "POST");
+                loadTrack();
                 const view = (plan.draft && plan.draft.map) || homebaseView();
                 map.setView([view.lat, view.lon], view.zoom);
                 updateStatus();
@@ -387,12 +644,35 @@
             if (event.key === "Escape") closeOpenPanel();
         });
 
+        // Liefert den eingegebenen Namen oder null bei Abbruch
+        function askTrackName() {
+            return new Promise(resolve => {
+                nameInput.value = "";
+                nameDialog.returnValue = "";
+                nameDialog.addEventListener("close", () => {
+                    resolve(nameDialog.returnValue === "ok" ? nameInput.value.trim() : null);
+                }, { once: true });
+                nameDialog.showModal();
+                nameInput.focus();
+            });
+        }
+
+        document.getElementById("btnPlanNameCancel").addEventListener("click", () => nameDialog.close("cancel"));
+
         btnSave.addEventListener("click", async () => {
             if (!plan) return;
+            const body = {};
+            // Noch nie gespeichert: der Track braucht einen Namen
+            if (!plan.saved_at) {
+                const name = await askTrackName();
+                if (!name) return;
+                body.name = name;
+            }
             clearTimeout(draftTimer);
             draftTimer = null;
+            body.draft = currentDraft();
             try {
-                plan = await api("/api/tour-plans/" + plan.id + "/save", "POST", { draft: currentDraft() });
+                plan = await api("/api/tour-plans/" + plan.id + "/save", "POST", body);
                 updateStatus();
             } catch (e) {
                 console.error("Fehler beim Speichern der Planung:", e);
@@ -409,6 +689,7 @@
             try {
                 // Danach geht es mit der zuletzt bearbeiteten verbliebenen Session weiter
                 plan = await api("/api/tour-plans/" + plan.id, "DELETE");
+                loadTrack();
                 if (plan) {
                     const view = (plan.draft && plan.draft.map) || homebaseView();
                     map.setView([view.lat, view.lon], view.zoom);
@@ -439,6 +720,7 @@
             console.error("Fehler beim Laden der Planung:", e);
         }
 
+        loadTrack();
         const view = (plan && plan.draft && plan.draft.map) || homebaseView();
         map.setView([view.lat, view.lon], view.zoom);
         map.on("moveend", scheduleDraftSave);

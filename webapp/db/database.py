@@ -170,9 +170,12 @@ HOMEBASE_SETTINGS = {
     "homebase.zoom": ("10", "Zoomstufe der Karte auf der Tourplanungsseite"),
 }
 
-# Routing der Tourplanung über BRouter; Profile z. B. trekking, fastbike, mtb, shortest
+# Routing der Tourplanung über BRouter, ein Profil je Aktivität (PLANNING_ACTIVITIES);
+# weitere Profile z. B. fastbike, safety, shortest, hiking-beta
 PLANNING_SETTINGS = {
-    "planning.routing_profile": ("trekking", "BRouter-Profil für das Routing auf der Tourplanungsseite"),
+    "planning.routing_profile.bike": ("trekking", "BRouter-Profil der Tourplanung für Aktivität Fahrrad"),
+    "planning.routing_profile.mtb": ("mtb", "BRouter-Profil der Tourplanung für Aktivität Mtb"),
+    "planning.routing_profile.hiking": ("hiking-mountain", "BRouter-Profil der Tourplanung für Aktivität Wandern"),
 }
 
 

@@ -152,7 +152,11 @@ def tour_planning(cursor):
         "lon": setting("homebase.lon", float),
         "zoom": setting("homebase.zoom", int),
     }
-    return render_template("tour_planning.html", homebase=homebase)
+    return render_template(
+        "tour_planning.html",
+        homebase=homebase,
+        activities=current_app.config["PLANNING_ACTIVITIES"],
+    )
 
 
 @pages_bp.route("/static/vendor/<path:filename>")
