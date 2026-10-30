@@ -138,6 +138,31 @@ def _ensure_calories_calc_column(cursor):
     print("Spalte activities.calories_calc angelegt.")
 
 
+def _ensure_tour_plans_table(cursor):
+    cursor.execute("SHOW TABLES LIKE 'tour_plans'")
+    if cursor.fetchone():
+        return
+
+    # Planungssessions der Tourplanung: draft ist der laufend gesicherte Arbeitsstand,
+    # saved_data der zuletzt per "Speichern" festgeschriebene Stand
+    cursor.execute(
+        """
+        CREATE TABLE `tour_plans` (
+          `id` int NOT NULL AUTO_INCREMENT,
+          `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+          `draft` json NOT NULL,
+          `saved_data` json DEFAULT NULL,
+          `saved_at` datetime DEFAULT NULL,
+          `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          `updated_at` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+          PRIMARY KEY (`id`),
+          KEY `idx_tour_plans_updated` (`updated_at`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        """
+    )
+    print("Tabelle tour_plans angelegt.")
+
+
 # Homebase (Mittelpunkt und Zoomstufe der Karte auf der Tourplanungsseite); Startwert München-Zentrum
 HOMEBASE_SETTINGS = {
     "homebase.lat": ("48.137", "Breitengrad der Homebase (Kartenmitte Tourplanung)"),
@@ -210,6 +235,7 @@ def ensure_database():
         _ensure_calories_calc_column(cursor)
         _ensure_default_bike_trigger(cursor)
         _ensure_homebase_settings(cursor)
+        _ensure_tour_plans_table(cursor)
         conn.commit()
     except mysql.connector.Error as err:
         print(f"Datenbankfehler beim Start: {err}")
