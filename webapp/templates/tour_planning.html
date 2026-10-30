@@ -49,6 +49,11 @@
             background-color: #e8eef8;
         }
 
+        .toolButton.danger:hover {
+            background-color: #fbeaea;
+            color: #c0392b;
+        }
+
         .toolButton:disabled {
             color: #a8b3c6;
             background: transparent;
@@ -182,6 +187,16 @@
                 Speichern
             </button>
         </div>
+        <div class="toolGroup" id="toolGroupDelete">
+            <button class="toolButton danger" id="btnPlanDelete" title="Aktuelle Planung löschen" disabled>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 6h18"/><path d="M8 6V4h8v2"/>
+                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                    <path d="M10 11v6"/><path d="M14 11v6"/>
+                </svg>
+                Löschen
+            </button>
+        </div>
         <div id="planStatus"></div>
         <div id="planOpenPanel" hidden></div>
     </div>
@@ -199,6 +214,7 @@
         const btnOpen = document.getElementById("btnPlanOpen");
         const openPanel = document.getElementById("planOpenPanel");
         const btnSave = document.getElementById("btnPlanSave");
+        const btnDelete = document.getElementById("btnPlanDelete");
         const statusEl = document.getElementById("planStatus");
 
         // Aktuelle Planungssession; null = noch keine angelegt
@@ -228,6 +244,7 @@
 
         function updateStatus(message) {
             btnSave.disabled = !plan;
+            btnDelete.disabled = !plan;
             statusEl.classList.toggle("dirty", !!(plan && plan.dirty));
             if (message) {
                 statusEl.textContent = message;
@@ -380,6 +397,26 @@
             } catch (e) {
                 console.error("Fehler beim Speichern der Planung:", e);
                 updateStatus("Speichern fehlgeschlagen");
+            }
+        });
+
+        btnDelete.addEventListener("click", async () => {
+            if (!plan) return;
+            if (!confirm("Planung „" + plan.name + "“ endgültig löschen?")) return;
+            // Ausstehende Sicherung verwerfen, sie gehört zur gelöschten Session
+            clearTimeout(draftTimer);
+            draftTimer = null;
+            try {
+                // Danach geht es mit der zuletzt bearbeiteten verbliebenen Session weiter
+                plan = await api("/api/tour-plans/" + plan.id, "DELETE");
+                if (plan) {
+                    const view = (plan.draft && plan.draft.map) || homebaseView();
+                    map.setView([view.lat, view.lon], view.zoom);
+                }
+                updateStatus();
+            } catch (e) {
+                console.error("Fehler beim Löschen der Planung:", e);
+                updateStatus("Löschen fehlgeschlagen");
             }
         });
 

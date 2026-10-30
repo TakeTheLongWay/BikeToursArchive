@@ -35,6 +35,12 @@ def _fetch_plan(cursor, plan_id):
     return cursor.fetchone()
 
 
+def _fetch_current_plan(cursor):
+    # Aktuell ist die zuletzt bearbeitete (oder geöffnete) Session
+    cursor.execute(f"SELECT {PLAN_COLUMNS} FROM tour_plans ORDER BY updated_at DESC, id DESC LIMIT 1")
+    return cursor.fetchone()
+
+
 def _request_draft():
     data = request.get_json(silent=True) or {}
     draft = data.get("draft")
@@ -45,8 +51,7 @@ def _request_draft():
 @planning_bp.route("/api/tour-plans/current", methods=["GET"])
 @mysql_connection_wrapper
 def api_tour_plan_current(cursor):
-    cursor.execute(f"SELECT {PLAN_COLUMNS} FROM tour_plans ORDER BY updated_at DESC, id DESC LIMIT 1")
-    row = cursor.fetchone()
+    row = _fetch_current_plan(cursor)
     return jsonify({"status": "ok", "plan": _plan_to_dict(row) if row else None})
 
 
@@ -119,3 +124,15 @@ def api_tour_plan_save(cursor, plan_id):
     if not row:
         return jsonify({"status": "error", "message": "Planung nicht gefunden."}), 404
     return jsonify({"status": "ok", "plan": _plan_to_dict(row)})
+
+
+# ── DELETE Session entfernen; liefert die danach aktuelle Session (oder null) ─
+@planning_bp.route("/api/tour-plans/<int:plan_id>", methods=["DELETE"])
+@mysql_connection_wrapper
+def api_tour_plan_delete(cursor, plan_id):
+    cursor.execute("DELETE FROM tour_plans WHERE id = %s", (plan_id,))
+    if not cursor.rowcount:
+        return jsonify({"status": "error", "message": "Planung nicht gefunden."}), 404
+
+    row = _fetch_current_plan(cursor)
+    return jsonify({"status": "ok", "plan": _plan_to_dict(row) if row else None})
