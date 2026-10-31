@@ -2,6 +2,7 @@ import math
 from datetime import timezone
 
 import gpxpy
+import gpxpy.gpx
 
 
 def haversine(lat1, lon1, lat2, lon2):
@@ -123,3 +124,67 @@ def load_gpx_data(file_path: str):
         pass
 
     return coords, total_ascent_m
+
+
+def parse_gpx_plan_tracks(content, fallback_name: str, activity: str) -> list:
+    """Tracks (und Routen) einer externen GPX-Datei als Planungs-Tracks im Format des Arbeitsstands.
+
+    Je GPX-Track bzw. -Route ein Eintrag {"name", "track"}; der Verlauf wird zu einem einzigen
+    Segment zwischen Start- und Endpunkt zusammengefasst, damit er unverändert erhalten bleibt.
+    """
+    gpx = gpxpy.parse(content)
+
+    # (Name, Punktlisten); Routen nur, wenn die Datei keine Tracks mit Punkten enthält
+    sources = [
+        (track.name, [seg.points for seg in track.segments])
+        for track in gpx.tracks
+        if any(seg.points for seg in track.segments)
+    ]
+    if not sources:
+        sources = [(route.name, [route.points]) for route in gpx.routes if route.points]
+    if not sources:
+        raise ValueError("GPX enthält keine Tracks oder Routen mit Punkten")
+
+    base_name = (gpx.name or "").strip() or fallback_name
+    results = []
+    for index, (name, point_lists) in enumerate(sources, start=1):
+        coords = []
+        distance_m = 0.0
+        ascent_m = 0.0
+        for points in point_lists:
+            # Anstieg mit der Glättung von gpxpy, sonst treibt GPS-Rauschen den Wert nach oben
+            part = gpxpy.gpx.GPXTrackSegment(points)
+            distance_m += part.length_2d() or 0.0
+            ascent_m += part.get_uphill_downhill().uphill or 0.0
+            for point in points:
+                coord = [round(point.latitude, 6), round(point.longitude, 6)]
+                if point.elevation is not None:
+                    coord.append(round(point.elevation, 1))
+                if coords and coords[-1][:2] == coord[:2]:
+                    continue
+                coords.append(coord)
+
+        track_name = (name or "").strip()
+        if not track_name:
+            track_name = base_name if len(sources) == 1 else f"{base_name} ({index})"
+
+        start, end = coords[0][:2], coords[-1][:2]
+        segments = []
+        if len(coords) > 1:
+            segments.append({
+                "coords": coords,
+                "distance_m": int(round(distance_m)),
+                "ascent_m": int(round(ascent_m)),
+                "activity": activity,
+                "profile": "gpx-import",
+                "routed": True,
+            })
+        results.append({
+            "name": track_name[:255],
+            "track": {
+                "activity": activity,
+                "points": [start, end] if segments else [start],
+                "segments": segments,
+            },
+        })
+    return results

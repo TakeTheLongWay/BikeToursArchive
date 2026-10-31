@@ -136,6 +136,47 @@
             font-size: 14px;
         }
 
+        .collection-import {
+            margin-top: 20px;
+            padding-top: 16px;
+            border-top: 1px solid #e0e6f0;
+        }
+
+        .collection-import h3 {
+            margin: 0 0 10px;
+            font-size: 14px;
+            color: #1C3F75;
+        }
+
+        .collection-import-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .collection-import-row input[type="file"] {
+            flex: 1;
+            min-width: 200px;
+            font-size: 13px;
+        }
+
+        .collection-import-row select {
+            padding: 8px 12px;
+            border: 1px solid #c0d3e9;
+            border-radius: 6px;
+            background-color: #f9fbfd;
+            font-size: 14px;
+        }
+
+        .collection-card .msg-info {
+            background: #e8f4ea;
+            color: #1e5a2b;
+            padding: 12px;
+            border-radius: 12px;
+            margin-bottom: 15px;
+        }
+
         .collection-hint {
             margin: 20px 0 0;
             font-size: 13px;
@@ -189,6 +230,7 @@
 
     <div class="collection-card">
         <div class="msg-error" id="collectionError" hidden></div>
+        <div class="msg-info" id="collectionInfo" hidden></div>
 
         {% if tracks %}
             <table>
@@ -231,8 +273,21 @@
                 <button type="button" id="addPlanButton">Track hinzufügen</button>
             </div>
         {% elif not tracks %}
-            <p class="collection-hint">Es gibt noch keine gespeicherten Tracks. Tracks werden unter „Planen“ erstellt und gespeichert.</p>
+            <p class="collection-hint">Es gibt noch keine gespeicherten Tracks. Tracks werden unter „Planen“ erstellt oder unten als GPX-Datei importiert.</p>
         {% endif %}
+
+        <form class="collection-import" id="gpxImportForm">
+            <h3>GPX-Dateien importieren</h3>
+            <div class="collection-import-row">
+                <input type="file" id="gpxImportFiles" name="files" accept=".gpx" multiple required>
+                <select id="gpxImportActivity" name="activity" title="Aktivität der importierten Tracks">
+                    {% for key, label in activities.items() %}
+                    <option value="{{ key }}">{{ label }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit" id="gpxImportButton">Importieren</button>
+            </div>
+        </form>
     </div>
     </div>
 
@@ -303,6 +358,66 @@
             if (!confirm("„" + button.dataset.planName + "“ aus der Sammlung entfernen?")) return;
             changeAssignment(button.dataset.removePlan, "DELETE");
         });
+    });
+
+    // GPX-Import: jeder Track der Dateien wird als gespeicherter Track angelegt und dieser Sammlung zugeordnet
+    const importForm = document.getElementById("gpxImportForm");
+    const importButton = document.getElementById("gpxImportButton");
+    const infoEl = document.getElementById("collectionInfo");
+    const IMPORT_INFO_KEY = "collectionImportInfo";
+
+    try {
+        const info = sessionStorage.getItem(IMPORT_INFO_KEY);
+        if (info) {
+            sessionStorage.removeItem(IMPORT_INFO_KEY);
+            infoEl.textContent = info;
+            infoEl.hidden = false;
+        }
+    } catch (e) { /* ohne sessionStorage keine Meldung nach dem Neuladen */ }
+
+    importForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        errorEl.hidden = true;
+        infoEl.hidden = true;
+        importButton.disabled = true;
+        importButton.textContent = "Importiere …";
+        try {
+            const response = await fetch(`/api/collections/${COLLECTION_ID}/import-gpx`, {
+                method: "POST",
+                body: new FormData(importForm)
+            });
+            const data = await response.json();
+            if (!response.ok || data.status !== "ok") {
+                throw new Error(data.message || data.error || ("HTTP " + response.status));
+            }
+
+            const failed = (data.errors || []).map(e => e.filename + ": " + e.error);
+            if (failed.length) {
+                errorEl.textContent = "Nicht importiert – " + failed.join("; ");
+                errorEl.hidden = false;
+            }
+            if (data.imported.length) {
+                const info = data.imported.length === 1
+                    ? "„" + data.imported[0].name + "“ wurde importiert."
+                    : data.imported.length + " Tracks wurden importiert.";
+                // Bei Fehlern nicht neu laden, damit die Fehlermeldung sichtbar bleibt
+                if (!failed.length) {
+                    try { sessionStorage.setItem(IMPORT_INFO_KEY, info); } catch (e) { /* ignorieren */ }
+                    window.location.reload();
+                    return;
+                }
+                infoEl.textContent = info + " Seite neu laden, um sie in der Liste zu sehen.";
+                infoEl.hidden = false;
+            }
+            importForm.reset();
+        } catch (e) {
+            console.error("Fehler beim GPX-Import:", e);
+            errorEl.textContent = "Import fehlgeschlagen: " + e.message;
+            errorEl.hidden = false;
+        } finally {
+            importButton.disabled = false;
+            importButton.textContent = "Importieren";
+        }
     });
 
     const addButton = document.getElementById("addPlanButton");

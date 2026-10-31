@@ -584,6 +584,7 @@ def collection_detail(cursor, collection_id):
         collection=collection,
         tracks=tracks,
         available_plans=cursor.fetchall(),
+        activities=current_app.config["PLANNING_ACTIVITIES"],
         error=error,
         form_name=form_name,
         form_image_url=form_image_url,

@@ -1,6 +1,10 @@
-from flask import Blueprint, jsonify
+import json
+import os
+
+from flask import Blueprint, current_app, jsonify, request
 
 from ..db.database import mysql_connection_wrapper
+from ..services.gpx_utils import parse_gpx_plan_tracks
 
 collections_bp = Blueprint("collections", __name__)
 
@@ -70,3 +74,62 @@ def api_collection_remove_plan(cursor, collection_id, plan_id):
         (collection_id, plan_id),
     )
     return jsonify({"status": "ok"})
+
+
+# ── POST externe GPX-Dateien als gespeicherte Tracks importieren und der Sammlung zuordnen ──
+@collections_bp.route("/api/collections/<int:collection_id>/import-gpx", methods=["POST"])
+@mysql_connection_wrapper
+def api_collection_import_gpx(cursor, collection_id):
+    if not _collection_exists(cursor, collection_id):
+        return jsonify({"status": "error", "message": "Sammlung nicht gefunden."}), 404
+
+    files = [f for f in request.files.getlist("files") if f.filename]
+    if not files:
+        return jsonify({"status": "error", "message": "Keine Dateien ausgewählt."}), 400
+
+    activities = current_app.config["PLANNING_ACTIVITIES"]
+    activity = request.form.get("activity") or next(iter(activities))
+    if activity not in activities:
+        return jsonify({"status": "error", "message": f"Unbekannte Aktivität: {activity}"}), 400
+
+    # "Planen" setzt die zuletzt bearbeitete Planung fort; importierte Tracks werden daher
+    # knapp vor diese einsortiert, damit sie die laufende Planung nicht verdrängen
+    cursor.execute("SELECT MAX(updated_at) - INTERVAL 1000 MICROSECOND AS before_current FROM tour_plans")
+    before_current = cursor.fetchone()["before_current"]
+
+    imported = []
+    errors = []
+    for uploaded_file in files:
+        filename = os.path.basename(uploaded_file.filename)
+        stem, extension = os.path.splitext(filename)
+        if extension.lower() != ".gpx":
+            errors.append({"filename": filename, "error": "Nur .gpx-Dateien erlaubt."})
+            continue
+
+        try:
+            plan_tracks = parse_gpx_plan_tracks(
+                uploaded_file.read().decode("utf-8-sig"), stem or "Importierter Track", activity
+            )
+        except Exception as exc:
+            current_app.logger.warning("GPX-Import von %s fehlgeschlagen: %s", filename, exc)
+            errors.append({"filename": filename, "error": str(exc)})
+            continue
+
+        for plan_track in plan_tracks:
+            # Import gilt direkt als gespeicherter Stand, damit der Track überall als fertig erscheint
+            draft = json.dumps({"track": plan_track["track"]})
+            cursor.execute(
+                """
+                INSERT INTO tour_plans (name, draft, saved_data, saved_at, updated_at)
+                VALUES (%s, %s, %s, NOW(), COALESCE(%s, NOW(3)))
+                """,
+                (plan_track["name"], draft, draft, before_current),
+            )
+            plan_id = cursor.lastrowid
+            cursor.execute(
+                "INSERT INTO collection_tour_plans (collection_id, tour_plan_id) VALUES (%s, %s)",
+                (collection_id, plan_id),
+            )
+            imported.append({"id": plan_id, "name": plan_track["name"]})
+
+    return jsonify({"status": "ok", "imported": imported, "errors": errors})
