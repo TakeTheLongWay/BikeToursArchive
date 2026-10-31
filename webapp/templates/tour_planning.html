@@ -120,20 +120,51 @@
             display: none;
         }
 
+        /* Je Sammlung: Häkchen mit Namen zum Zuordnen, rechts ein Link zur Sammlung */
         .planCollectionItem {
             display: flex;
             align-items: center;
-            gap: 8px;
-            padding: 6px 8px;
             border-radius: 6px;
-            font-size: 13px;
-            font-weight: 600;
-            color: #1C3F75;
-            cursor: pointer;
         }
 
         .planCollectionItem:hover {
             background-color: #e8eef8;
+        }
+
+        .planCollectionItem label {
+            flex: 1 1 auto;
+            min-width: 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 8px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #1C3F75;
+            cursor: pointer;
+            overflow-wrap: anywhere;
+        }
+
+        .planCollectionLink {
+            flex: 0 0 auto;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            margin-right: 2px;
+            border-radius: 6px;
+            color: #4B77BE;
+        }
+
+        .planCollectionLink:hover {
+            background-color: #d6e1f3;
+            color: #1C3F75;
+        }
+
+        .planCollectionLink svg {
+            width: 15px;
+            height: 15px;
         }
 
         .planCollectionEmpty a {
@@ -312,6 +343,13 @@
                 </svg>
                 Export
             </button>
+            <button class="toolButton" id="btnPlanDetails" title="Detailseite des Tracks öffnen" disabled>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="9"/>
+                    <path d="M12 11v6"/><path d="M12 7.5v.01"/>
+                </svg>
+                Details
+            </button>
         </div>
         <div class="toolGroup" id="toolGroupEdit">
             <button class="toolButton" id="btnTrackUndo" title="Letzten Trackpunkt entfernen (Strg+Z)" disabled>
@@ -398,6 +436,7 @@
         const selActivity = document.getElementById("selPlanActivity");
         const btnUndo = document.getElementById("btnTrackUndo");
         const btnExport = document.getElementById("btnPlanExport");
+        const btnDetails = document.getElementById("btnPlanDetails");
         const nameDialog = document.getElementById("planNameDialog");
         const nameInput = document.getElementById("planNameInput");
         // Voreinstellung ist die erste Aktivität der Auswahl (Fahrrad)
@@ -510,6 +549,7 @@
             selActivity.disabled = !plan;
             btnUndo.disabled = !plan || !track.points.length;
             btnExport.disabled = !plan || !track.points.length;
+            btnDetails.disabled = !plan;
             // Zuordnen erst nach dem ersten Speichern, dann hat der Track einen Namen
             btnCollections.disabled = !plan || !plan.saved_at;
             btnCollections.title = btnCollections.disabled && plan
@@ -1087,13 +1127,25 @@
                 return;
             }
             collections.forEach(c => {
-                const item = document.createElement("label");
+                const item = document.createElement("div");
                 item.className = "planCollectionItem";
+
+                const label = document.createElement("label");
                 const checkbox = document.createElement("input");
                 checkbox.type = "checkbox";
                 checkbox.checked = c.assigned;
                 checkbox.addEventListener("change", () => setCollectionAssignment(c.id, planId, checkbox));
-                item.append(checkbox, c.name);
+                label.append(checkbox, c.name);
+
+                // Ausstehende Sicherung holt der beforeunload-Handler beim Verlassen der Seite nach
+                const link = document.createElement("a");
+                link.className = "planCollectionLink";
+                link.href = COLLECTIONS_URL + "/" + c.id;
+                link.title = "Sammlung „" + c.name + "“ öffnen";
+                link.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+                    + '<path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>';
+
+                item.append(label, link);
                 collectionPanel.appendChild(item);
             });
         }
@@ -1201,6 +1253,17 @@
             document.body.appendChild(link);
             link.click();
             link.remove();
+        });
+
+        // Detailseite zeigt den gespeicherten Stand (ohne Speicherung den Arbeitsstand): vorher
+        // ausstehende Routings und die Sicherung abwarten, damit sie aktuell ist
+        btnDetails.addEventListener("click", async () => {
+            if (!plan) return;
+            const generation = trackGeneration;
+            await routingChain;
+            if (generation !== trackGeneration) return;
+            if (draftTimer) await saveDraftNow();
+            window.location.href = "/track/" + plan.id;
         });
 
         // Beim Verlassen der Seite eine noch ausstehende Sicherung nachholen

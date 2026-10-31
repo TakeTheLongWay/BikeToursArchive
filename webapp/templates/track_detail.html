@@ -144,10 +144,13 @@
         }
 
         #trackActionsBox {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
             padding: 10px 12px;
         }
 
-        #btnOpenPlanning {
+        .track-action {
             display: block;
             text-align: center;
             padding: 8px 12px;
@@ -160,8 +163,13 @@
             transition: background-color 0.2s;
         }
 
-        #btnOpenPlanning:hover {
+        .track-action:hover {
             background: #3a5f9e;
+        }
+
+        .track-action.disabled {
+            background: #c5cfe0;
+            cursor: default;
         }
 
         /* Rechts Karte und darunter das Höhenprofil, zusammen genau so hoch wie der Bildschirm */
@@ -269,7 +277,12 @@
             </div>
 
             <div class="track-box" id="trackActionsBox">
-                <a id="btnOpenPlanning" href="{{ url_for('pages.tour_planning', plan=track.id) }}">In der Planung öffnen</a>
+                {% if track.point_count %}
+                    <a class="track-action" id="btnGpxDownload" href="/api/tour-plans/{{ track.id }}/gpx?saved=1" download title="Angezeigten Track als GPX herunterladen">⬇ GPX</a>
+                {% else %}
+                    <span class="track-action disabled" title="Der Track enthält noch keine Punkte">⬇ GPX</span>
+                {% endif %}
+                <a class="track-action" id="btnOpenPlanning" href="{{ url_for('pages.tour_planning', plan=track.id) }}">In der Planung öffnen</a>
             </div>
         </div>
 

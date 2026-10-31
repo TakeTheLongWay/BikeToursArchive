@@ -41,10 +41,14 @@ h2, h3 {
     box-sizing: border-box;
 }
 
+/* Kaum seitlicher Innenabstand: auch längere Beschriftungen wie "Sammlungen" passen mittig
+   in die 90px breiten Buttons, statt rechts überzustehen */
 #MainMenuDashboard button {
     width: 100%;
-    padding: 10px 8px;
+    padding: 10px 2px;
     font-size: 13px;
+    text-align: center;
+    white-space: nowrap;
 }
 
 /* Seiteninhalt mit Abstand zur Sidebar */

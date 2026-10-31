@@ -266,6 +266,7 @@ def _track_to_gpx(name, track, activity_label):
 
 
 # ── GET Arbeitsstand als GPX-Datei herunterladen, Dateiname = Trackname ──────
+# ?saved=1 (Trackdetailseite): gespeicherten Stand statt Arbeitsstand, ohne Speicherung den Arbeitsstand
 @planning_bp.route("/api/tour-plans/<int:plan_id>/gpx", methods=["GET"])
 @mysql_connection_wrapper
 def api_tour_plan_gpx(cursor, plan_id):
@@ -274,7 +275,10 @@ def api_tour_plan_gpx(cursor, plan_id):
         return jsonify({"status": "error", "message": "Planung nicht gefunden."}), 404
 
     plan = _plan_to_dict(row)
-    track = plan["draft"].get("track") or {}
+    data = plan["draft"]
+    if request.args.get("saved") == "1" and row["saved_data"] is not None:
+        data = _load_json(row["saved_data"]) or {}
+    track = data.get("track") or {}
     if not track.get("points"):
         return jsonify({"status": "error", "message": "Der Track enthält noch keine Punkte."}), 400
 
