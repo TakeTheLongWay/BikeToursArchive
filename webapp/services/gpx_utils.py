@@ -151,11 +151,14 @@ def parse_gpx_plan_tracks(content, fallback_name: str, activity: str) -> list:
         coords = []
         distance_m = 0.0
         ascent_m = 0.0
+        descent_m = 0.0
         for points in point_lists:
             # Anstieg mit der Glättung von gpxpy, sonst treibt GPS-Rauschen den Wert nach oben
             part = gpxpy.gpx.GPXTrackSegment(points)
             distance_m += part.length_2d() or 0.0
-            ascent_m += part.get_uphill_downhill().uphill or 0.0
+            uphill_downhill = part.get_uphill_downhill()
+            ascent_m += uphill_downhill.uphill or 0.0
+            descent_m += uphill_downhill.downhill or 0.0
             for point in points:
                 coord = [round(point.latitude, 6), round(point.longitude, 6)]
                 if point.elevation is not None:
@@ -175,6 +178,8 @@ def parse_gpx_plan_tracks(content, fallback_name: str, activity: str) -> list:
                 "coords": coords,
                 "distance_m": int(round(distance_m)),
                 "ascent_m": int(round(ascent_m)),
+                # Abstieg: wird zum Anstieg, wenn der Verlauf in der Planung umgedreht wird
+                "descent_m": int(round(descent_m)),
                 "activity": activity,
                 "profile": "gpx-import",
                 "routed": True,

@@ -1,5 +1,6 @@
 import io
 import json
+import os
 from datetime import datetime
 
 import gpxpy.gpx
@@ -7,6 +8,7 @@ import requests
 from flask import Blueprint, current_app, jsonify, request, send_file
 
 from ..db.database import PLANNING_SETTINGS, mysql_connection_wrapper
+from ..services.gpx_utils import parse_gpx_plan_tracks
 
 planning_bp = Blueprint("planning", __name__)
 
@@ -306,3 +308,46 @@ def api_tour_plan_delete(cursor, plan_id):
 
     row = _fetch_current_plan(cursor)
     return jsonify({"status": "ok", "plan": _plan_to_dict(row) if row else None})
+
+
+# ── GET Track einer gespeicherten Planung, z. B. als Teiltrack für eine andere Planung ─
+# Gespeicherter Stand, ohne Speicherung der Arbeitsstand
+@planning_bp.route("/api/tour-plans/<int:plan_id>/track", methods=["GET"])
+@mysql_connection_wrapper
+def api_tour_plan_track(cursor, plan_id):
+    row = _fetch_plan(cursor, plan_id)
+    if not row:
+        return jsonify({"status": "error", "message": "Planung nicht gefunden."}), 404
+    data = _load_json(row["saved_data"]) if row["saved_data"] is not None else _load_json(row["draft"])
+    return jsonify({"status": "ok", "name": row["name"], "track": (data or {}).get("track") or {}})
+
+
+# ── POST GPX-Dateien einlesen, ohne sie zu speichern (Teiltracks für die Planung) ──
+@planning_bp.route("/api/gpx/plan-tracks", methods=["POST"])
+def api_gpx_plan_tracks():
+    files = [f for f in request.files.getlist("files") if f.filename]
+    if not files:
+        return jsonify({"status": "error", "message": "Keine Dateien ausgewählt."}), 400
+
+    activities = current_app.config["PLANNING_ACTIVITIES"]
+    activity = request.form.get("activity") or next(iter(activities))
+    if activity not in activities:
+        return jsonify({"status": "error", "message": f"Unbekannte Aktivität: {activity}"}), 400
+
+    tracks = []
+    errors = []
+    for uploaded_file in files:
+        filename = os.path.basename(uploaded_file.filename)
+        stem, extension = os.path.splitext(filename)
+        if extension.lower() != ".gpx":
+            errors.append({"filename": filename, "error": "Nur .gpx-Dateien erlaubt."})
+            continue
+        try:
+            tracks.extend(parse_gpx_plan_tracks(
+                uploaded_file.read().decode("utf-8-sig"), stem or "Teiltrack", activity
+            ))
+        except Exception as exc:
+            current_app.logger.warning("GPX-Datei %s nicht lesbar: %s", filename, exc)
+            errors.append({"filename": filename, "error": str(exc)})
+
+    return jsonify({"status": "ok", "tracks": tracks, "errors": errors})

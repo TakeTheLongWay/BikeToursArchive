@@ -5,23 +5,28 @@
     <title>Sammlung {{ collection.name }}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <style>
+        /* Kopf und Trackkarte gleich breit: 900px Inhalt + 2 x 25px Innenabstand + 4px Rand der Karte */
+        .collection-header,
+        .collection-card {
+            box-sizing: border-box;
+            max-width: 954px;
+        }
+
         .collection-header {
-            max-width: 900px;
-            display: flex;
-            align-items: flex-start;
-            gap: 16px;
             margin-bottom: 16px;
         }
 
-        .collection-header-main {
+        .collection-title-row {
             display: flex;
-            flex-direction: column;
-            gap: 12px;
-            min-width: 0;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px 16px;
         }
 
-        .collection-header-main .title {
+        .collection-title-row .title {
             margin: 0;
+            min-width: 0;
+            overflow-wrap: anywhere;
         }
 
         .collection-back {
@@ -64,18 +69,19 @@
             background: #fbeaea;
         }
 
+        /* Volle Breite, Höhe nach Seitenverhältnis des Bildes; sehr hohe Bilder werden beschnitten */
         .collection-header-image {
             display: block;
-            width: 360px;
-            max-width: 100%;
-            aspect-ratio: 4 / 3;
+            width: 100%;
+            height: auto;
+            max-height: 480px;
             object-fit: cover;
+            margin-bottom: 14px;
             border-radius: 8px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.08);
         }
 
         .collection-card {
-            max-width: 900px;
             background: #fff;
             padding: 25px;
             border-radius: 12px;
@@ -231,15 +237,15 @@
     <!-- Ansicht der Sammlung; bei einem Fehler im Formular wird direkt das Formular gezeigt -->
     <div id="collectionContent" {% if error %}hidden{% endif %}>
     <div class="collection-header">
-        <div class="collection-header-main">
-            {% if collection.has_image %}
-                <img class="collection-header-image" src="{{ url_for('pages.collection_image', collection_id=collection.id) }}" alt="{{ collection.name }}">
-            {% endif %}
+        {% if collection.has_image %}
+            <img class="collection-header-image" src="{{ url_for('pages.collection_image', collection_id=collection.id) }}" alt="{{ collection.name }}">
+        {% endif %}
+        <div class="collection-title-row">
             <h1 class="title">{{ collection.name }}</h1>
-        </div>
-        <div class="collection-header-actions">
-            <button type="button" class="btn-edit" id="collectionEdit">Bearbeiten</button>
-            <button type="button" class="btn-delete" id="collectionDelete">Löschen</button>
+            <div class="collection-header-actions">
+                <button type="button" class="btn-edit" id="collectionEdit">Bearbeiten</button>
+                <button type="button" class="btn-delete" id="collectionDelete">Löschen</button>
+            </div>
         </div>
     </div>
 

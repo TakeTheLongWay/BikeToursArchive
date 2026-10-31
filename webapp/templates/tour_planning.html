@@ -120,6 +120,33 @@
             display: none;
         }
 
+        /* ── Auswahl von "Teiltrack": GPX-Dateien oder gespeicherte Tracks ── */
+        #planPartPanel {
+            position: absolute;
+            top: calc(100% + 4px);
+            z-index: 1100;
+            width: 320px;
+            max-height: 60vh;
+            overflow-y: auto;
+            padding: 4px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+        }
+
+        #planPartPanel[hidden] {
+            display: none;
+        }
+
+        .planPartHeading {
+            padding: 8px 8px 4px;
+            font-size: 11px;
+            font-weight: 600;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
         /* Je Sammlung: Häkchen mit Namen zum Zuordnen, rechts ein Link zur Sammlung */
         .planCollectionItem {
             display: flex;
@@ -282,6 +309,61 @@
             cursor: copy;
         }
 
+        /* ── Kontextmenü der Karte (rechte Maustaste) ── */
+        #mapContextMenu {
+            position: fixed;
+            z-index: 1200;
+            min-width: 190px;
+            padding: 4px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+        }
+
+        #mapContextMenu[hidden] {
+            display: none;
+        }
+
+        .contextMenuItem {
+            display: block;
+            width: 100%;
+            padding: 6px 10px;
+            border-radius: 6px;
+            background: transparent;
+            color: #1C3F75;
+            font-size: 13px;
+            font-weight: 600;
+            text-align: left;
+        }
+
+        .contextMenuItem:hover {
+            background-color: #e8eef8;
+        }
+
+        .contextMenuItem.danger:hover {
+            background-color: #fbeaea;
+            color: #c0392b;
+        }
+
+        .contextMenuItem:disabled,
+        .contextMenuItem:disabled:hover {
+            color: #a8b3c6;
+            background: transparent;
+            cursor: default;
+        }
+
+        .contextMenuHint {
+            display: block;
+            font-size: 11px;
+            font-weight: normal;
+        }
+
+        .contextMenuSeparator {
+            height: 1px;
+            margin: 4px 6px;
+            background: #dde3ee;
+        }
+
         #planningMap.drawing path.trackPoint,
         #planningMap.movingPoint,
         #planningMap.movingPoint path {
@@ -360,6 +442,16 @@
                 Rückgängig
             </button>
         </div>
+        <div class="toolGroup" id="toolGroupParts">
+            <button class="toolButton" id="btnPlanParts" title="Teiltrack aus einer GPX-Datei oder einem gespeicherten Track laden und anfügen" disabled>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4 18c3 0 4-4 7-4"/><path d="M13 10c3 0 4-4 7-4"/>
+                    <circle cx="11" cy="14" r="1.5"/><circle cx="13" cy="10" r="1.5"/>
+                </svg>
+                Teiltrack
+            </button>
+            <input type="file" id="partFileInput" accept=".gpx" multiple hidden>
+        </div>
         <div class="toolGroup" id="toolGroupActivity">
             <select class="toolSelect" id="selPlanActivity" title="Aktivität, für die der Track geroutet wird" disabled>
                 {% for key, label in activities.items() %}
@@ -389,9 +481,11 @@
         <div id="planStatus"></div>
         <div id="planOpenPanel" hidden></div>
         <div id="planCollectionPanel" hidden></div>
+        <div id="planPartPanel" hidden></div>
     </div>
 
     <div id="planningMap"></div>
+    <div id="mapContextMenu" role="menu" hidden></div>
 
     <dialog id="planNameDialog">
         <form method="dialog">
@@ -429,6 +523,12 @@
         // Vielfachen der Verschiebung (mindestens IMPORT_JOIN_MIN_M) entlang des Verlaufs gesucht
         const IMPORT_JOIN_FACTOR = 3;
         const IMPORT_JOIN_MIN_M = 50;
+        // Geladene Teiltracks: Farbe auf der Karte; Enden, die höchstens so weit auseinander liegen,
+        // werden ohne Routing direkt verbunden
+        const PART_COLOR = "#e67e22";
+        const PART_JOIN_DIRECT_M = 30;
+        // Höhenänderung in Metern, ab der beim Neuberechnen des Anstiegs gezählt wird (gegen Höhenrauschen)
+        const CLIMB_THRESHOLD_M = 3;
 
         const btnNew = document.getElementById("btnPlanNew");
         const btnOpen = document.getElementById("btnPlanOpen");
@@ -438,6 +538,10 @@
         const btnSave = document.getElementById("btnPlanSave");
         const btnDelete = document.getElementById("btnPlanDelete");
         const selActivity = document.getElementById("selPlanActivity");
+        const btnParts = document.getElementById("btnPlanParts");
+        const partPanel = document.getElementById("planPartPanel");
+        const partFileInput = document.getElementById("partFileInput");
+        const contextMenu = document.getElementById("mapContextMenu");
         const btnUndo = document.getElementById("btnTrackUndo");
         const btnExport = document.getElementById("btnPlanExport");
         const btnDetails = document.getElementById("btnPlanDetails");
@@ -463,11 +567,18 @@
         let segmentLines = [];
         // Gesetzt nach dem Ablegen eines verschobenen Trackpunkts: der folgende Klick setzt keinen Punkt
         let pointDragged = false;
+        // Geladene, noch nicht angefügte Teiltracks { name, points, segments }; nur auf der Karte,
+        // nicht im Arbeitsstand, und beim Sessionwechsel verworfen
+        let partTracks = [];
+        // Gesetzt, wenn ein Mausklick nur das offene Kontextmenü schließt: er setzt keinen Punkt
+        let menuDismissed = false;
 
         const map = L.map("planningMap");
         L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
             attribution: "&copy; OpenStreetMap contributors"
         }).addTo(map);
+        // Teiltracks unter dem Track, damit dessen Punkte und Linien bedienbar bleiben
+        const partLayer = L.layerGroup().addTo(map);
         const trackLayer = L.layerGroup().addTo(map);
 
         function homebaseView() {
@@ -506,6 +617,7 @@
                     // Breite, unsichtbare Linie darüber: ein Klick auf den Track fügt dort einen Trackpunkt ein
                     L.polyline(latlngs, { weight: TRACK_HIT_WEIGHT, opacity: 0, className: "trackHitLine" })
                         .on("click", event => onTrackClick(event, seg))
+                        .on("contextmenu", event => onTrackContextMenu(event, seg))
                         .addTo(trackLayer);
                 }
                 return line;
@@ -524,10 +636,17 @@
                 }).addTo(trackLayer);
                 if (plan) {
                     marker.on("mousedown", event => startPointDrag(event, pt, marker));
-                    // Rechtsklick löscht den Trackpunkt
+                    // Rechtsklick öffnet das Kontextmenü (Trennen, Punkt löschen)
                     marker.on("contextmenu", event => onPointContextMenu(event, pt));
                 }
             });
+        }
+
+        // Frühe GPX-Importe tragen nur das Profil "gpx-import", noch nicht die Markierung imported
+        function normalizeSegments(segments) {
+            return (Array.isArray(segments) ? segments : []).map(seg =>
+                seg.profile === "gpx-import" && !seg.imported ? Object.assign({}, seg, { imported: true }) : seg
+            );
         }
 
         // Track der (neu) geladenen Session übernehmen und anzeigen
@@ -540,12 +659,11 @@
             track = {
                 activity: activityKnown ? saved.activity : DEFAULT_ACTIVITY,
                 points: (saved && Array.isArray(saved.points)) ? saved.points : [],
-                // Frühe GPX-Importe tragen nur das Profil "gpx-import", noch nicht die Markierung imported
-                segments: ((saved && Array.isArray(saved.segments)) ? saved.segments : []).map(seg =>
-                    seg.profile === "gpx-import" && !seg.imported ? Object.assign({}, seg, { imported: true }) : seg
-                )
+                segments: normalizeSegments(saved && saved.segments)
             };
             selActivity.value = track.activity;
+            partTracks = [];
+            renderParts();
             renderTrack();
             map.getContainer().classList.toggle("drawing", !!plan);
         }
@@ -554,6 +672,7 @@
             btnSave.disabled = !plan;
             btnDelete.disabled = !plan;
             selActivity.disabled = !plan;
+            btnParts.disabled = !plan;
             btnUndo.disabled = !plan || !track.points.length;
             btnExport.disabled = !plan || !track.points.length;
             btnDetails.disabled = !plan;
@@ -855,7 +974,7 @@
                 pointDragged = false;
                 return;
             }
-            if (panelOpen() || !plan) return;
+            if (menuDismissed || panelOpen() || !plan) return;
             const generation = trackGeneration;
             routingChain = routingChain.then(() => insertTrackPoint(segment, event.latlng, generation));
         }
@@ -931,8 +1050,44 @@
             L.DomEvent.stopPropagation(event);
             event.originalEvent.preventDefault();
             if (!plan) return;
+            const index = track.points.indexOf(pointRef);
+            const inner = index > 0 && index < track.points.length - 1;
+            showContextMenu(event.originalEvent, [
+                connectMenuItem(null),
+                {
+                    label: "Trennen",
+                    hint: inner ? "Track an diesem Punkt trennen" : "Nur an einem Zwischenpunkt möglich",
+                    disabled: !inner,
+                    action: () => queueTrackChange(generation => cutAtPoint(pointRef, generation))
+                },
+                null,
+                {
+                    label: "Punkt löschen",
+                    danger: true,
+                    action: () => queueTrackChange(generation => deleteTrackPoint(pointRef, generation))
+                }
+            ]);
+        }
+
+        function onTrackContextMenu(event, segment) {
+            L.DomEvent.stopPropagation(event);
+            event.originalEvent.preventDefault();
+            if (!plan) return;
+            const latlng = event.latlng;
+            showContextMenu(event.originalEvent, [
+                connectMenuItem(null),
+                {
+                    label: "Trennen",
+                    hint: "Track an dieser Stelle trennen",
+                    action: () => queueTrackChange(generation => cutAtLatLng(segment, latlng, generation))
+                }
+            ]);
+        }
+
+        // Änderungen am Track nacheinander abarbeiten (wie Klicks), damit sie aufeinander aufbauen
+        function queueTrackChange(change) {
             const generation = trackGeneration;
-            routingChain = routingChain.then(() => deleteTrackPoint(pointRef, generation));
+            routingChain = routingChain.then(() => change(generation));
         }
 
         // Gedrückter Trackpunkt folgt der Maus; beim Loslassen wird er dort abgelegt
@@ -1008,9 +1163,442 @@
             scheduleDraftSave();
         }
 
+        // ── Teiltracks ────────────────────────────────────────────────────────
+
+        // Anstieg entlang des Verlaufs; Schwankungen unter CLIMB_THRESHOLD_M zählen nicht.
+        // undefined, wenn dem Verlauf Höhen fehlen
+        function climbOf(coords) {
+            if (!coords.length || coords.some(c => c.length < 3 || c[2] === null || c[2] === undefined)) return undefined;
+            let total = 0;
+            let low = coords[0][2];
+            for (const c of coords) {
+                if (c[2] - low >= CLIMB_THRESHOLD_M) {
+                    total += c[2] - low;
+                    low = c[2];
+                } else if (c[2] < low) {
+                    low = c[2];
+                }
+            }
+            return Math.round(total);
+        }
+
+        // Segment in Gegenrichtung: Anstieg und Abstieg tauschen; ohne bekannten Abstieg wird der
+        // Anstieg aus den Höhen neu berechnet
+        function reverseSegment(segment) {
+            const coords = segment.coords.slice().reverse();
+            const ascent = segment.descent_m !== undefined ? segment.descent_m : climbOf(coords);
+            return Object.assign({}, segment, { coords: coords, ascent_m: ascent, descent_m: segment.ascent_m });
+        }
+
+        function reversePart(part) {
+            return Object.assign({}, part, {
+                points: part.points.slice().reverse(),
+                segments: part.segments.slice().reverse().map(reverseSegment)
+            });
+        }
+
+        function partLatLngs(part) {
+            const coords = part.segments.flatMap(seg => seg.coords);
+            return (coords.length ? coords : part.points).map(c => [c[0], c[1]]);
+        }
+
+        function renderParts() {
+            partLayer.clearLayers();
+            partTracks.forEach(part => {
+                const latlngs = partLatLngs(part);
+                const tooltip = "Teiltrack „" + part.name + "“ – Rechtsklick: Verbinden oder Entfernen";
+                const line = L.polyline(latlngs, {
+                    color: PART_COLOR,
+                    weight: 4,
+                    opacity: 0.85,
+                    interactive: false
+                }).addTo(partLayer);
+                // Breite, unsichtbare Klickfläche wie beim Track
+                L.polyline(latlngs, { weight: TRACK_HIT_WEIGHT, opacity: 0, className: "partTrackLine" })
+                    .bindTooltip(tooltip, { sticky: true })
+                    .on("contextmenu", event => onPartContextMenu(event, part))
+                    .on("mouseover", () => line.setStyle({ weight: 6, opacity: 1 }))
+                    .on("mouseout", () => line.setStyle({ weight: 4, opacity: 0.85 }))
+                    .addTo(partLayer);
+                [part.points[0], part.points[part.points.length - 1]].forEach(pt => {
+                    L.circleMarker(pt, {
+                        radius: 4, color: PART_COLOR, weight: 2, fillColor: "#fff", fillOpacity: 1, interactive: false
+                    }).addTo(partLayer);
+                });
+            });
+        }
+
+        // Neue Teiltracks auf die Karte legen und den Kartenausschnitt auf sie einstellen
+        function addPartTracks(parts) {
+            const usable = parts
+                .map(p => ({
+                    name: p.name,
+                    points: Array.isArray(p.track && p.track.points) ? p.track.points : [],
+                    segments: normalizeSegments(p.track && p.track.segments)
+                }))
+                .filter(p => p.points.length);
+            if (!usable.length) return 0;
+            partTracks = partTracks.concat(usable);
+            renderParts();
+            const bounds = L.latLngBounds(usable.flatMap(partLatLngs));
+            if (bounds.isValid()) map.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
+            return usable.length;
+        }
+
+        function formatKm(meters) {
+            return (meters / 1000).toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + " km";
+        }
+
+        // Fügt den Teiltrack an das nächstgelegene Ende des Tracks an (wenn nötig umgedreht). Liegen
+        // die Enden höchstens PART_JOIN_DIRECT_M auseinander, werden sie direkt verbunden, sonst wird
+        // dazwischen geroutet
+        async function joinPartTrack(part, generation) {
+            if (generation !== trackGeneration || !partTracks.includes(part)) return;
+
+            // Leerer Track: Teiltrack wird zum Track
+            if (!track.points.length) {
+                rememberTrack({ restorePart: part });
+                track.points = part.points.slice();
+                track.segments = part.segments.slice();
+                partTracks = partTracks.filter(p => p !== part);
+                renderParts();
+                renderTrack();
+                updateStatus("Teiltrack „" + part.name + "“ übernommen");
+                scheduleDraftSave();
+                return;
+            }
+
+            const first = track.points[0];
+            const last = track.points[track.points.length - 1];
+            const partFirst = part.points[0];
+            const partLast = part.points[part.points.length - 1];
+            // Mögliche Verbindungen; bei gleichem Abstand wird hinten angefügt
+            const options = [
+                { append: true, reverse: false, dist: map.distance(last, partFirst) },
+                { append: true, reverse: true, dist: map.distance(last, partLast) },
+                { append: false, reverse: false, dist: map.distance(partLast, first) },
+                { append: false, reverse: true, dist: map.distance(partFirst, first) }
+            ];
+            const best = options.reduce((a, b) => (b.dist < a.dist ? b : a));
+            const piece = best.reverse ? reversePart(part) : part;
+            const from = best.append ? last : piece.points[piece.points.length - 1];
+            const to = best.append ? piece.points[0] : first;
+
+            let points;
+            let segments;
+            let message;
+            if (best.dist <= PART_JOIN_DIRECT_M) {
+                // Direkt: die beiden Enden werden zu einem Trackpunkt, der Verlauf des Teiltracks
+                // beginnt bzw. endet genau dort
+                const gap = Math.round(best.dist);
+                const pieceSegments = piece.segments.slice();
+                if (best.append) {
+                    if (pieceSegments.length && !sameCoord(pieceSegments[0].coords[0], last)) {
+                        const seg = pieceSegments[0];
+                        pieceSegments[0] = Object.assign({}, seg, {
+                            coords: [[last[0], last[1]]].concat(seg.coords),
+                            distance_m: (seg.distance_m || 0) + gap
+                        });
+                    }
+                    points = track.points.concat(piece.points.slice(1));
+                    segments = track.segments.concat(pieceSegments);
+                } else {
+                    const k = pieceSegments.length - 1;
+                    if (pieceSegments.length && !sameCoord(pieceSegments[k].coords[pieceSegments[k].coords.length - 1], first)) {
+                        const seg = pieceSegments[k];
+                        pieceSegments[k] = Object.assign({}, seg, {
+                            coords: seg.coords.concat([[first[0], first[1]]]),
+                            distance_m: (seg.distance_m || 0) + gap
+                        });
+                    }
+                    points = piece.points.slice(0, -1).concat(track.points);
+                    segments = pieceSegments.concat(track.segments);
+                }
+                message = "Teiltrack „" + part.name + "“ direkt angefügt";
+            } else {
+                updateStatus("Verbindung wird berechnet …");
+                const { segment: bridge, warning } = await connectPoints(from, to);
+                if (generation !== trackGeneration || !partTracks.includes(part)) return;
+                if (best.append) {
+                    points = track.points.concat(piece.points);
+                    segments = track.segments.concat([bridge], piece.segments);
+                } else {
+                    points = piece.points.concat(track.points);
+                    segments = piece.segments.concat([bridge], track.segments);
+                }
+                message = warning
+                    ? "Teiltrack „" + part.name + "“ angefügt – " + warning
+                    : "Teiltrack „" + part.name + "“ angefügt, Verbindung " + formatKm(bridge.distance_m || 0);
+            }
+
+            rememberTrack({ restorePart: part });
+            track.points = points;
+            track.segments = segments;
+            partTracks = partTracks.filter(p => p !== part);
+            renderParts();
+            renderTrack();
+            updateStatus(message);
+            scheduleDraftSave();
+        }
+
+        // Menüeintrag "Verbinden"; ohne Teiltrack ausgegraut mit Hinweis
+        function connectMenuItem(part) {
+            return {
+                label: "Verbinden",
+                hint: part
+                    ? (track.points.length ? "„" + part.name + "“ an den Track anfügen" : "„" + part.name + "“ als Track übernehmen")
+                    : (partTracks.length ? "Rechtsklick auf einen orangen Teiltrack" : "Zuerst über „Teiltrack“ einen Teiltrack laden"),
+                disabled: !part,
+                action: () => queueTrackChange(generation => joinPartTrack(part, generation))
+            };
+        }
+
+        function onPartContextMenu(event, part) {
+            L.DomEvent.stopPropagation(event);
+            event.originalEvent.preventDefault();
+            if (!plan) return;
+            showContextMenu(event.originalEvent, [
+                connectMenuItem(part),
+                { label: "Trennen", hint: "Rechtsklick auf den Track", disabled: true },
+                null,
+                {
+                    label: "Teiltrack entfernen",
+                    danger: true,
+                    action: () => {
+                        partTracks = partTracks.filter(p => p !== part);
+                        renderParts();
+                    }
+                }
+            ]);
+        }
+
+        // ── Trennen ──
+
+        // Trennt den Track am Trackpunkt mit Index index: der Track endet dort, der Rest wird
+        // zum Teiltrack auf der Karte
+        function cutTrack(points, segments, index) {
+            const part = {
+                name: (plan ? plan.name : "Track") + " – abgetrennt",
+                points: points.slice(index),
+                segments: segments.slice(index)
+            };
+            rememberTrack({ removePart: part });
+            track.points = points.slice(0, index + 1);
+            track.segments = segments.slice(0, index);
+            partTracks.push(part);
+            renderParts();
+            renderTrack();
+            updateStatus("Track getrennt – der abgetrennte Teil liegt orange auf der Karte");
+            scheduleDraftSave();
+        }
+
+        function cutAtPoint(pointRef, generation) {
+            if (generation !== trackGeneration) return;
+            const index = track.points.indexOf(pointRef);
+            if (index <= 0 || index >= track.points.length - 1) return;
+            cutTrack(track.points, track.segments, index);
+        }
+
+        // Trennt den Track an der Stelle des Segments, die latlng am nächsten liegt; dort entsteht
+        // zuerst ein neuer Trackpunkt (wie beim Einfügen per Klick)
+        function cutAtLatLng(segment, latlng, generation) {
+            if (generation !== trackGeneration) return;
+            const index = track.segments.indexOf(segment);
+            if (index < 0) return;
+            const split = splitSegment(segment, latlng);
+            if (!split) return;
+            const points = track.points.slice();
+            const segments = track.segments.slice();
+            segments.splice(index, 1, split.before, split.after);
+            points.splice(index + 1, 0, split.point);
+            cutTrack(points, segments, index + 1);
+        }
+
+        // ── Kontextmenü ──
+
+        // items: { label, hint, disabled, danger, action } oder null als Trennlinie
+        function showContextMenu(mouseEvent, items) {
+            closeOpenPanel();
+            contextMenu.replaceChildren();
+            items.forEach(item => {
+                if (!item) {
+                    const separator = document.createElement("div");
+                    separator.className = "contextMenuSeparator";
+                    contextMenu.appendChild(separator);
+                    return;
+                }
+                const button = document.createElement("button");
+                button.type = "button";
+                button.className = "contextMenuItem" + (item.danger ? " danger" : "");
+                button.setAttribute("role", "menuitem");
+                button.disabled = !!item.disabled;
+                button.append(item.label);
+                if (item.hint) {
+                    const hint = document.createElement("span");
+                    hint.className = "contextMenuHint";
+                    hint.textContent = item.hint;
+                    button.appendChild(hint);
+                }
+                button.addEventListener("click", (event) => {
+                    event.stopPropagation();
+                    hideContextMenu();
+                    if (item.action) item.action();
+                });
+                contextMenu.appendChild(button);
+            });
+            contextMenu.hidden = false;
+            // Am Mauszeiger öffnen, aber innerhalb des Fensters bleiben
+            const x = Math.min(mouseEvent.clientX, window.innerWidth - contextMenu.offsetWidth - 4);
+            const y = Math.min(mouseEvent.clientY, window.innerHeight - contextMenu.offsetHeight - 4);
+            contextMenu.style.left = Math.max(4, x) + "px";
+            contextMenu.style.top = Math.max(4, y) + "px";
+        }
+
+        function hideContextMenu() {
+            contextMenu.hidden = true;
+        }
+
+        // Rechtsklick auf eine freie Stelle der Karte
+        map.on("contextmenu", (event) => {
+            if (!plan) return;
+            showContextMenu(event.originalEvent, [
+                connectMenuItem(null),
+                { label: "Trennen", hint: "Rechtsklick auf den Track", disabled: true }
+            ]);
+        });
+        map.on("movestart zoomstart", hideContextMenu);
+        // In der Capture-Phase, damit das Flag vor den Klick-Handlern der Karte gesetzt ist
+        document.addEventListener("mousedown", (event) => {
+            menuDismissed = !contextMenu.hidden && !contextMenu.contains(event.target);
+            if (menuDismissed) hideContextMenu();
+        }, true);
+        document.addEventListener("keydown", (event) => {
+            if (event.key === "Escape") hideContextMenu();
+        });
+
+        async function loadPartFromPlan(planId) {
+            closeOpenPanel();
+            try {
+                const response = await fetch("/api/tour-plans/" + planId + "/track");
+                const data = await response.json();
+                if (!response.ok || data.status !== "ok") {
+                    throw new Error(data.message || data.error || ("HTTP " + response.status));
+                }
+                if (!addPartTracks([{ name: data.name, track: data.track }])) {
+                    updateStatus("Der Track „" + data.name + "“ enthält keine Punkte");
+                    return;
+                }
+                updateStatus("Teiltrack geladen – zum Anfügen anklicken");
+            } catch (e) {
+                console.error("Fehler beim Laden des Teiltracks:", e);
+                updateStatus("Teiltrack konnte nicht geladen werden");
+            }
+        }
+
+        partFileInput.addEventListener("change", async () => {
+            const files = [...partFileInput.files];
+            partFileInput.value = "";
+            if (!files.length || !plan) return;
+            const body = new FormData();
+            files.forEach(f => body.append("files", f));
+            body.append("activity", track.activity);
+            updateStatus("GPX-Dateien werden gelesen …");
+            try {
+                const response = await fetch("/api/gpx/plan-tracks", { method: "POST", body: body });
+                const data = await response.json();
+                if (!response.ok || data.status !== "ok") {
+                    throw new Error(data.message || data.error || ("HTTP " + response.status));
+                }
+                const count = addPartTracks(data.tracks);
+                const failed = data.errors.map(e => e.filename);
+                let message = count === 1 ? "Teiltrack geladen – zum Anfügen anklicken"
+                    : count ? count + " Teiltracks geladen – zum Anfügen anklicken"
+                    : "Keine Teiltracks geladen";
+                if (failed.length) message += " · nicht lesbar: " + failed.join(", ");
+                updateStatus(message);
+            } catch (e) {
+                console.error("Fehler beim Lesen der GPX-Dateien:", e);
+                updateStatus("GPX-Dateien konnten nicht gelesen werden");
+            }
+        });
+
+        function renderPartPanel(plans) {
+            partPanel.replaceChildren();
+            const gpxItem = document.createElement("button");
+            gpxItem.className = "planOpenItem";
+            const gpxName = document.createElement("div");
+            gpxName.className = "planOpenName";
+            gpxName.textContent = "GPX-Datei(en) laden …";
+            const gpxMeta = document.createElement("div");
+            gpxMeta.className = "planOpenMeta";
+            gpxMeta.textContent = "Mehrere Dateien möglich";
+            gpxItem.append(gpxName, gpxMeta);
+            gpxItem.addEventListener("click", () => {
+                closeOpenPanel();
+                partFileInput.click();
+            });
+            partPanel.appendChild(gpxItem);
+
+            const heading = document.createElement("div");
+            heading.className = "planPartHeading";
+            heading.textContent = "Gespeicherte Tracks";
+            partPanel.appendChild(heading);
+
+            const saved = plans.filter(p => p.saved_at && (!plan || p.id !== plan.id));
+            if (!saved.length) {
+                const empty = document.createElement("div");
+                empty.className = "planOpenEmpty";
+                empty.textContent = "Keine weiteren gespeicherten Tracks";
+                partPanel.appendChild(empty);
+                return;
+            }
+            saved
+                .slice()
+                .sort((a, b) => a.name.localeCompare(b.name, "de"))
+                .forEach(p => {
+                    const item = document.createElement("button");
+                    item.className = "planOpenItem";
+                    const name = document.createElement("div");
+                    name.className = "planOpenName";
+                    name.textContent = p.name;
+                    const meta = document.createElement("div");
+                    meta.className = "planOpenMeta";
+                    meta.textContent = "gespeichert " + formatTimestamp(p.saved_at);
+                    item.append(name, meta);
+                    item.addEventListener("click", () => loadPartFromPlan(p.id));
+                    partPanel.appendChild(item);
+                });
+        }
+
+        btnParts.addEventListener("click", async (event) => {
+            event.stopPropagation();
+            if (!partPanel.hidden) {
+                closeOpenPanel();
+                return;
+            }
+            closeOpenPanel();
+            if (!plan) return;
+            try {
+                const response = await fetch("/api/tour-plans");
+                const data = await response.json();
+                if (!response.ok || data.status !== "ok") {
+                    throw new Error(data.message || data.error || ("HTTP " + response.status));
+                }
+                renderPartPanel(data.plans);
+                // Liste unter dem Button ausrichten
+                partPanel.style.left = btnParts.parentElement.offsetLeft + "px";
+                partPanel.hidden = false;
+            } catch (e) {
+                console.error("Fehler beim Laden der Tracks:", e);
+                updateStatus("Tracks konnten nicht geladen werden");
+            }
+        });
+
         // Punkte und Segmente werden nur ersetzt, nie verändert, flache Kopien genügen daher
-        function rememberTrack() {
-            trackHistory.push({ points: track.points.slice(), segments: track.segments.slice() });
+        // extra.restorePart: angefügter Teiltrack, der bei "Rückgängig" wieder auf die Karte kommt;
+        // extra.removePart: abgetrennter Teiltrack, der bei "Rückgängig" wieder verschwindet
+        function rememberTrack(extra) {
+            trackHistory.push(Object.assign({ points: track.points.slice(), segments: track.segments.slice() }, extra));
         }
 
         function undoTrackChange(generation) {
@@ -1019,6 +1607,14 @@
             if (previous) {
                 track.points = previous.points;
                 track.segments = previous.segments;
+                if (previous.restorePart && !partTracks.includes(previous.restorePart)) {
+                    partTracks.push(previous.restorePart);
+                    renderParts();
+                }
+                if (previous.removePart) {
+                    partTracks = partTracks.filter(p => p !== previous.removePart);
+                    renderParts();
+                }
             } else {
                 // Nach dem Laden einer Session gibt es keinen Verlauf: letzten Punkt entfernen
                 track.points.pop();
@@ -1061,6 +1657,8 @@
                 pointDragged = false;
                 return;
             }
+            // Klick, der nur das Kontextmenü geschlossen hat
+            if (menuDismissed) return;
             // Klick schließt nur die offene Auswahlliste von "Öffnen" bzw. "Sammlungen"
             if (panelOpen()) return;
             if (!plan) {
@@ -1098,10 +1696,11 @@
         function closeOpenPanel() {
             openPanel.hidden = true;
             collectionPanel.hidden = true;
+            partPanel.hidden = true;
         }
 
         function panelOpen() {
-            return !openPanel.hidden || !collectionPanel.hidden;
+            return !openPanel.hidden || !collectionPanel.hidden || !partPanel.hidden;
         }
 
         async function openPlan(planId) {
@@ -1252,6 +1851,7 @@
         document.addEventListener("click", (event) => {
             if (!openPanel.hidden && !openPanel.contains(event.target)) closeOpenPanel();
             if (!collectionPanel.hidden && !collectionPanel.contains(event.target)) closeOpenPanel();
+            if (!partPanel.hidden && !partPanel.contains(event.target)) closeOpenPanel();
         });
         document.addEventListener("keydown", (event) => {
             if (event.key === "Escape") closeOpenPanel();
