@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="utf-8">
+    <title>Sammlungen</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        /* Ohne Sammlungen steht nur der Link "Neue Sammlung anlegen" mittig auf der Seite */
+        .collections-empty {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: calc(100vh - 40px);
+        }
+
+        .collection-new-link {
+            background: none;
+            padding: 0;
+            color: #4B77BE;
+            font-size: 22px;
+            font-weight: 600;
+        }
+
+        .collection-new-link:hover {
+            background: none;
+            color: #1C3F75;
+            text-decoration: underline;
+        }
+
+        .collections-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+            gap: 16px;
+        }
+
+        .collection-item {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            background: #fff;
+            padding: 8px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            text-decoration: none;
+        }
+
+        a.collection-item:hover {
+            box-shadow: 0 0 0 2px #4B77BE;
+        }
+
+        .collection-image {
+            aspect-ratio: 4 / 3;
+            background: #dde4f0;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .collection-image img {
+            display: block;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .collection-name {
+            padding: 0 4px;
+            font-size: 15px;
+            font-weight: 600;
+            color: #1C3F75;
+            overflow-wrap: anywhere;
+        }
+
+        .collection-count {
+            margin-top: -6px;
+            padding: 0 4px 4px;
+            font-size: 12px;
+            color: #666;
+        }
+
+        /* Kachel zum Anlegen einer weiteren Sammlung am Ende des Rasters */
+        .collection-item-new {
+            align-items: center;
+            justify-content: center;
+            min-height: 200px;
+            background: transparent;
+            border: 2px dashed #c0d3e9;
+            box-shadow: none;
+        }
+
+        /* Formular für eine neue Sammlung */
+        .collection-form-wrapper {
+            display: flex;
+            justify-content: center;
+            padding-top: 10vh;
+        }
+
+        .collection-form {
+            width: 100%;
+            max-width: 420px;
+            background: #fff;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            border-left: 4px solid #4B77BE;
+        }
+
+        .detail-row {
+            margin-bottom: 15px;
+        }
+
+        .detail-row label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: #666;
+            margin-bottom: 4px;
+        }
+
+        .detail-row input[type="text"] {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #c0d3e9;
+            border-radius: 6px;
+            background-color: #f9fbfd;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+
+        .detail-row input[type="file"] {
+            font-size: 13px;
+        }
+
+        .collection-preview {
+            display: none;
+            margin-top: 10px;
+            width: 100%;
+            aspect-ratio: 4 / 3;
+            object-fit: cover;
+            border-radius: 8px;
+        }
+
+        .form-actions {
+            margin-top: 25px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn-save {
+            background: #2eaf4a !important;
+            flex: 2;
+        }
+
+        .btn-cancel {
+            background: #666 !important;
+            flex: 1;
+        }
+
+        .msg-error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 12px;
+            border-radius: 12px;
+            margin-bottom: 15px;
+        }
+
+        [hidden] {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+
+<div id="MainMenuDashboard">
+    <button id="btnDashboard" onclick="window.location.href='{{ url_for('pages.index') }}'">Dashboard</button>
+    <button id="btnDiary" onclick="window.location.href='{{ url_for('pages.diary') }}'">Tagebuch</button>
+    <button id="btnBikeTracker" onclick="window.location.href='{{ url_for('biketracker.biketracker') }}'">BikeTracker</button>
+    <button id="btnEditGoals" onclick="window.location.href='{{ url_for('pages.mygoals') }}'">Ziele</button>
+    <button id="btnMyBikes" onclick="window.location.href='{{ url_for('pages.mybikes') }}'">Bikes</button>
+    <button id="btnSettings" onclick="window.location.href='{{ url_for('pages.appsettings') }}'">Settings</button>
+    <button id="btnStatistics" onclick="window.location.href='{{ url_for('pages.statistics') }}'">Statistik</button>
+    <button id="btnGallery" onclick="window.location.href='{{ url_for('pages.gallery') }}'">Galerie</button>
+    <button id="btnCollections" onclick="window.location.href='{{ url_for('pages.collections') }}'">Sammlungen</button>
+    <button id="btnPlanning" onclick="window.location.href='{{ url_for('pages.tour_planning') }}'">Planen</button>
+</div>
+
+<div id="pageContent">
+
+    <!-- Übersicht; bei einem Fehler im Formular wird direkt das Formular gezeigt -->
+    <div id="collectionsOverview" {% if error %}hidden{% endif %}>
+        {% if collections %}
+            <div class="collections-grid">
+                {% for c in collections %}
+                <a class="collection-item" href="{{ url_for('pages.collection_detail', collection_id=c.id) }}">
+                    <div class="collection-image">
+                        {% if c.has_image %}
+                            <img src="{{ url_for('pages.collection_image', collection_id=c.id) }}" alt="{{ c.name }}" loading="lazy">
+                        {% endif %}
+                    </div>
+                    <div class="collection-name">{{ c.name }}</div>
+                    <div class="collection-count">{{ c.track_count }} {{ "Track" if c.track_count == 1 else "Tracks" }}</div>
+                </a>
+                {% endfor %}
+                <div class="collection-item collection-item-new">
+                    <button type="button" class="collection-new-link" data-new-collection>Neue Sammlung anlegen</button>
+                </div>
+            </div>
+        {% else %}
+            <div class="collections-empty">
+                <button type="button" class="collection-new-link" data-new-collection>Neue Sammlung anlegen</button>
+            </div>
+        {% endif %}
+    </div>
+
+    <div class="collection-form-wrapper" id="collectionFormWrapper" {% if not error %}hidden{% endif %}>
+        <form class="collection-form" method="POST" enctype="multipart/form-data">
+            {% if error %}
+                <div class="msg-error">{{ error }}</div>
+            {% endif %}
+
+            <div class="detail-row">
+                <label for="collection-name">Name der Sammlung</label>
+                <input type="text" name="name" id="collection-name" maxlength="255" value="{{ form_name }}" required>
+            </div>
+
+            <div class="detail-row">
+                <label for="collection-image">Bild</label>
+                <input type="file" name="image" id="collection-image" accept="image/*">
+                <img class="collection-preview" id="collectionPreview" alt="Vorschau">
+            </div>
+
+            <div class="form-actions">
+                <button type="button" class="btn-cancel" id="collectionCancel">Abbrechen</button>
+                <button type="submit" class="btn-save">Speichern</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    const overview = document.getElementById("collectionsOverview");
+    const formWrapper = document.getElementById("collectionFormWrapper");
+    const nameInput = document.getElementById("collection-name");
+    const imageInput = document.getElementById("collection-image");
+    const preview = document.getElementById("collectionPreview");
+
+    function showForm(visible) {
+        overview.hidden = visible;
+        formWrapper.hidden = !visible;
+        if (visible) {
+            nameInput.focus();
+        }
+    }
+
+    document.querySelectorAll("[data-new-collection]").forEach((button) => {
+        button.addEventListener("click", () => showForm(true));
+    });
+
+    document.getElementById("collectionCancel").addEventListener("click", () => {
+        formWrapper.querySelector("form").reset();
+        nameInput.value = "";
+        preview.style.display = "none";
+        formWrapper.querySelector(".msg-error")?.remove();
+        showForm(false);
+    });
+
+    // Vorschau des gewählten Bildes unter dem Dateifeld
+    imageInput.addEventListener("change", () => {
+        const file = imageInput.files[0];
+        if (preview.src) {
+            URL.revokeObjectURL(preview.src);
+        }
+        if (file) {
+            preview.src = URL.createObjectURL(file);
+            preview.style.display = "block";
+        } else {
+            preview.removeAttribute("src");
+            preview.style.display = "none";
+        }
+    });
+
+    if (!formWrapper.hidden) {
+        nameInput.focus();
+    }
+</script>
+
+</body>
+</html>

@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="utf-8">
+    <title>Sammlung {{ collection.name }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .collection-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        .collection-back {
+            color: #4B77BE;
+            font-size: 13px;
+            font-weight: 600;
+            text-decoration: none;
+        }
+
+        .collection-back:hover {
+            text-decoration: underline;
+        }
+
+        .collection-header-image {
+            width: 96px;
+            height: 72px;
+            object-fit: cover;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .collection-card {
+            max-width: 900px;
+            background: #fff;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            border-left: 4px solid #4B77BE;
+        }
+
+        .collection-card table {
+            width: 100%;
+            margin-top: 0;
+            border-collapse: collapse;
+        }
+
+        .collection-card th,
+        .collection-card td {
+            padding: 8px 6px;
+            border-bottom: 1px solid #e0e6f0;
+            text-align: left;
+            font-size: 14px;
+        }
+
+        .collection-card th {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .collection-card td.num,
+        .collection-card th.num {
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        .track-link {
+            color: #1C3F75;
+            font-weight: 600;
+            text-decoration: none;
+        }
+
+        .track-link:hover {
+            text-decoration: underline;
+        }
+
+        .btn-remove {
+            padding: 4px 10px;
+            font-size: 12px;
+            background: transparent;
+            color: #c0392b;
+        }
+
+        .btn-remove:hover {
+            background: #fbeaea;
+        }
+
+        .collection-empty {
+            color: #888;
+            margin: 0;
+        }
+
+        .collection-add {
+            display: flex;
+            gap: 8px;
+            margin-top: 20px;
+        }
+
+        .collection-add select {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid #c0d3e9;
+            border-radius: 6px;
+            background-color: #f9fbfd;
+            font-size: 14px;
+        }
+
+        .collection-hint {
+            margin: 20px 0 0;
+            font-size: 13px;
+            color: #888;
+        }
+
+        .msg-error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 12px;
+            border-radius: 12px;
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+
+<div id="MainMenuDashboard">
+    <button id="btnDashboard" onclick="window.location.href='{{ url_for('pages.index') }}'">Dashboard</button>
+    <button id="btnDiary" onclick="window.location.href='{{ url_for('pages.diary') }}'">Tagebuch</button>
+    <button id="btnBikeTracker" onclick="window.location.href='{{ url_for('biketracker.biketracker') }}'">BikeTracker</button>
+    <button id="btnEditGoals" onclick="window.location.href='{{ url_for('pages.mygoals') }}'">Ziele</button>
+    <button id="btnMyBikes" onclick="window.location.href='{{ url_for('pages.mybikes') }}'">Bikes</button>
+    <button id="btnSettings" onclick="window.location.href='{{ url_for('pages.appsettings') }}'">Settings</button>
+    <button id="btnStatistics" onclick="window.location.href='{{ url_for('pages.statistics') }}'">Statistik</button>
+    <button id="btnGallery" onclick="window.location.href='{{ url_for('pages.gallery') }}'">Galerie</button>
+    <button id="btnCollections" onclick="window.location.href='{{ url_for('pages.collections') }}'">Sammlungen</button>
+    <button id="btnPlanning" onclick="window.location.href='{{ url_for('pages.tour_planning') }}'">Planen</button>
+</div>
+
+<div id="pageContent">
+
+    <a class="collection-back" href="{{ url_for('pages.collections') }}">&larr; Alle Sammlungen</a>
+
+    <div class="collection-header">
+        {% if collection.has_image %}
+            <img class="collection-header-image" src="{{ url_for('pages.collection_image', collection_id=collection.id) }}" alt="{{ collection.name }}">
+        {% endif %}
+        <h1 class="title">{{ collection.name }}</h1>
+    </div>
+
+    <div class="collection-card">
+        <div class="msg-error" id="collectionError" hidden></div>
+
+        {% if tracks %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Track</th>
+                        <th>Aktivität</th>
+                        <th class="num">Distanz</th>
+                        <th class="num">Anstieg</th>
+                        <th>Gespeichert</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for t in tracks %}
+                    <tr>
+                        <td><a class="track-link" href="{{ url_for('pages.tour_planning', plan=t.id) }}" title="In der Tourplanung öffnen">{{ t.name }}</a></td>
+                        <td>{{ t.activity }}</td>
+                        <td class="num">{{ "{:,.1f}".format(t.distance_km).replace(",", "X").replace(".", ",").replace("X", ".") }} km</td>
+                        <td class="num">{{ "{:,}".format(t.ascent_m).replace(",", ".") }} m</td>
+                        <td>{{ t.saved_display }}</td>
+                        <td class="num">
+                            <button type="button" class="btn-remove" data-remove-plan="{{ t.id }}" data-plan-name="{{ t.name }}">Entfernen</button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p class="collection-empty">Dieser Sammlung sind noch keine Tracks zugeordnet.</p>
+        {% endif %}
+
+        {% if available_plans %}
+            <div class="collection-add">
+                <select id="addPlanSelect">
+                    {% for p in available_plans %}
+                    <option value="{{ p.id }}">{{ p.name }}</option>
+                    {% endfor %}
+                </select>
+                <button type="button" id="addPlanButton">Track hinzufügen</button>
+            </div>
+        {% elif not tracks %}
+            <p class="collection-hint">Es gibt noch keine gespeicherten Tracks. Tracks werden unter „Planen“ erstellt und gespeichert.</p>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+    const COLLECTION_ID = {{ collection.id }};
+    const errorEl = document.getElementById("collectionError");
+
+    async function changeAssignment(planId, method) {
+        try {
+            const response = await fetch(`/api/collections/${COLLECTION_ID}/tour-plans/${planId}`, { method: method });
+            const data = await response.json();
+            if (!response.ok || data.status !== "ok") {
+                throw new Error(data.message || data.error || ("HTTP " + response.status));
+            }
+            window.location.reload();
+        } catch (e) {
+            console.error("Fehler beim Ändern der Sammlung:", e);
+            errorEl.textContent = "Änderung fehlgeschlagen: " + e.message;
+            errorEl.hidden = false;
+        }
+    }
+
+    document.querySelectorAll("[data-remove-plan]").forEach((button) => {
+        button.addEventListener("click", () => {
+            if (!confirm("„" + button.dataset.planName + "“ aus der Sammlung entfernen?")) return;
+            changeAssignment(button.dataset.removePlan, "DELETE");
+        });
+    });
+
+    const addButton = document.getElementById("addPlanButton");
+    if (addButton) {
+        addButton.addEventListener("click", () => {
+            changeAssignment(document.getElementById("addPlanSelect").value, "PUT");
+        });
+    }
+</script>
+
+</body>
+</html>
