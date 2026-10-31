@@ -425,6 +425,10 @@
         // Sperrzone gegen das Umkehren am verschobenen Trackpunkt: Abstand zum Punkt und Radius in Metern
         const UTURN_BLOCK_DISTANCE_M = 15;
         const UTURN_BLOCK_RADIUS_M = 10;
+        // Verschobener Start-/Endpunkt eines importierten Verlaufs: Anschlusspunkt wird im Umkreis des
+        // Vielfachen der Verschiebung (mindestens IMPORT_JOIN_MIN_M) entlang des Verlaufs gesucht
+        const IMPORT_JOIN_FACTOR = 3;
+        const IMPORT_JOIN_MIN_M = 50;
 
         const btnNew = document.getElementById("btnPlanNew");
         const btnOpen = document.getElementById("btnPlanOpen");
@@ -536,7 +540,10 @@
             track = {
                 activity: activityKnown ? saved.activity : DEFAULT_ACTIVITY,
                 points: (saved && Array.isArray(saved.points)) ? saved.points : [],
-                segments: (saved && Array.isArray(saved.segments)) ? saved.segments : []
+                // Frühe GPX-Importe tragen nur das Profil "gpx-import", noch nicht die Markierung imported
+                segments: ((saved && Array.isArray(saved.segments)) ? saved.segments : []).map(seg =>
+                    seg.profile === "gpx-import" && !seg.imported ? Object.assign({}, seg, { imported: true }) : seg
+                )
             };
             selActivity.value = track.activity;
             renderTrack();
@@ -657,6 +664,65 @@
                 distance_m: part(segment.distance_m),
                 ascent_m: part(segment.ascent_m)
             });
+        }
+
+        // Hängt second an first an; das Ergebnis enthält weiterhin (Teile des) importierten Verlaufs
+        function concatSegments(first, second) {
+            const a = first.coords;
+            const b = second.coords;
+            const sum = key => (first[key] === undefined && second[key] === undefined)
+                ? undefined : (first[key] || 0) + (second[key] || 0);
+            return Object.assign({}, first.imported ? first : second, {
+                coords: a.concat(b.slice(sameCoord(a[a.length - 1], b[0]) ? 1 : 0)),
+                distance_m: sum("distance_m"),
+                ascent_m: sum("ascent_m"),
+                routed: true,
+                imported: true
+            });
+        }
+
+        // Index im importierten Verlauf, an dem die neue Route nach dem Verschieben eines Trackpunkts
+        // anschließt. Der Trackpunkt ist das Ende (fromEnd) bzw. der Anfang des Verlaufs.
+        // Start-/Endpunkt des Tracks: der Verlaufspunkt nahe am Trackpunkt, der dem neuen Ort am
+        // nächsten liegt (Track verkürzen, verlängern oder Ende verlegen).
+        // Zwischenpunkt: der Verlaufspunkt, der so weit entlang des Verlaufs liegt, wie der Trackpunkt
+        // verschoben wurde; die Route führt dann über den neuen Ort, ohne Stichstrecke.
+        function importedJoinIndex(coords, fromEnd, oldPoint, newPoint, isEndpoint) {
+            const drag = map.distance(oldPoint, newPoint);
+            const range = isEndpoint ? Math.max(drag * IMPORT_JOIN_FACTOR, IMPORT_JOIN_MIN_M) : drag;
+            let along = 0;
+            let best = null;
+            for (let k = 0; k < coords.length; k++) {
+                const j = fromEnd ? coords.length - 1 - k : k;
+                if (k > 0) along += map.distance(coords[fromEnd ? j + 1 : j - 1], coords[j]);
+                const dist = map.distance(coords[j], newPoint);
+                if (!isEndpoint || best === null || dist < best.dist) best = { index: j, dist: dist };
+                if (along >= range) break;
+            }
+            return best.index;
+        }
+
+        // Route vom vorherigen Trackpunkt zum verschobenen Trackpunkt (index); ein importierter
+        // Verlauf bleibt bis zum Anschlusspunkt erhalten, nur das Stück danach wird neu geroutet
+        async function connectBefore(index, point, isEndpoint) {
+            const segment = track.segments[index - 1];
+            if (!segment.imported) return connectPoints(track.points[index - 1], point);
+            const coords = segment.coords;
+            const j = importedJoinIndex(coords, true, track.points[index], point, isEndpoint);
+            if (j === 0) return connectPoints(track.points[index - 1], point);
+            const { segment: routed, warning } = await connectPoints([coords[j][0], coords[j][1]], point);
+            return { segment: concatSegments(trimSegment(segment, coords.slice(0, j + 1)), routed), warning: warning };
+        }
+
+        // Wie connectBefore für die Route vom verschobenen Trackpunkt zum nächsten
+        async function connectAfter(index, point, isEndpoint) {
+            const segment = track.segments[index];
+            if (!segment.imported) return connectPoints(point, track.points[index + 1]);
+            const coords = segment.coords;
+            const j = importedJoinIndex(coords, false, track.points[index], point, isEndpoint);
+            if (j === coords.length - 1) return connectPoints(point, track.points[index + 1]);
+            const { segment: routed, warning } = await connectPoints(point, [coords[j][0], coords[j][1]]);
+            return { segment: concatSegments(routed, trimSegment(segment, coords.slice(j))), warning: warning };
         }
 
         // Anzahl der Punkte, die das Ende von before rückwärts gelesen mit dem Anfang von after gemeinsam
@@ -806,14 +872,18 @@
             const prev = index > 0 ? track.points[index - 1] : null;
             const next = index < track.points.length - 1 ? track.points[index + 1] : null;
             if (prev || next) updateStatus("Route wird berechnet …");
+            const isEndpoint = !prev || !next;
             const [before, after] = await Promise.all([
-                prev ? connectPoints(prev, point) : null,
-                next ? connectPoints(point, next) : null
+                prev ? connectBefore(index, point, isEndpoint) : null,
+                next ? connectAfter(index, point, isEndpoint) : null
             ]);
             // Session wurde während des Routings gewechselt
             if (generation !== trackGeneration) return;
             let afterSegment = after && after.segment;
-            if (before && after) afterSegment = await avoidUTurn(before.segment, afterSegment, next);
+            // Bei importiertem Verlauf nicht: avoidUTurn routet bis zum nächsten Trackpunkt komplett neu
+            if (before && after && !track.segments[index - 1].imported && !track.segments[index].imported) {
+                afterSegment = await avoidUTurn(before.segment, afterSegment, next);
+            }
             if (generation !== trackGeneration) return;
             const joined = joinAtTrackPoint(point, before && before.segment, afterSegment);
             rememberTrack();
@@ -833,7 +903,12 @@
             const last = track.points.length - 1;
             let warning = null;
             let bridge = null;
-            if (index > 0 && index < last) {
+            const merged = index > 0 && index < last
+                && track.segments[index - 1].imported && track.segments[index].imported;
+            if (merged) {
+                // Zwischenpunkt in importiertem Verlauf: beide Teile ohne neues Routing zusammenfügen
+                bridge = concatSegments(track.segments[index - 1], track.segments[index]);
+            } else if (index > 0 && index < last) {
                 updateStatus("Route wird berechnet …");
                 ({ segment: bridge, warning } = await connectPoints(track.points[index - 1], track.points[index + 1]));
                 // Session wurde während des Routings gewechselt

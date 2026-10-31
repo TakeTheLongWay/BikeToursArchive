@@ -178,6 +178,8 @@ def parse_gpx_plan_tracks(content, fallback_name: str, activity: str) -> list:
                 "activity": activity,
                 "profile": "gpx-import",
                 "routed": True,
+                # Originalverlauf: die Planung routet beim Verschieben nur das Stück am Trackpunkt neu
+                "imported": True,
             })
         results.append({
             "name": track_name[:255],
