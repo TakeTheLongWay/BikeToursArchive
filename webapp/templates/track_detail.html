@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="utf-8">
+    <title>Track {{ track.name }}</title>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+    <link rel="stylesheet" href="{{ url_for('pages.vendor_static', filename='leaflet/leaflet.css') }}">
+    <script defer src="{{ url_for('pages.vendor_static', filename='leaflet/leaflet.js') }}"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        /* Aufbau wie die Tourdetailseite: links Werte, Sammlungen und Aktionen, rechts die Karte */
+        :root {
+            --track-sidebar-width: 250px;
+            --track-column-gap: 5px;
+        }
+
+        #pageContent {
+            height: 100vh;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .track-title {
+            margin-left: calc(var(--track-sidebar-width) + var(--track-column-gap));
+            overflow-wrap: anywhere;
+        }
+
+        #trackLayout {
+            flex: 1 1 auto;
+            min-height: 0;
+            display: flex;
+            gap: var(--track-column-gap);
+            margin-top: 5px;
+        }
+
+        #trackSidebar {
+            flex: 0 0 var(--track-sidebar-width);
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .track-box {
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            padding: 4px 12px;
+        }
+
+        #trackStatsBox {
+            border-left: 4px solid #4B77BE;
+        }
+
+        .track-stat {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            gap: 10px;
+            padding: 5px 0;
+            border-bottom: 1px solid #eef1f7;
+            font-size: 13px;
+        }
+
+        .track-stat:last-child {
+            border-bottom: none;
+        }
+
+        .track-stat-label {
+            color: #666;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .track-stat-value {
+            color: #1C3F75;
+            font-weight: 700;
+            text-align: right;
+        }
+
+        .track-stat-unit {
+            font-size: 11px;
+            font-weight: 600;
+            color: #888;
+        }
+
+        .track-dirty {
+            padding: 5px 0;
+            font-size: 12px;
+            color: #b9770e;
+        }
+
+        /* Sammlungen, in denen der Track liegt */
+        #trackCollectionsBox {
+            flex: 0 1 auto;
+            min-height: 0;
+            overflow-y: auto;
+            padding: 10px 12px;
+        }
+
+        .track-box-title {
+            margin-bottom: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #666;
+        }
+
+        .track-collection {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 4px;
+            margin: 0 -4px;
+            border-radius: 6px;
+            color: #1C3F75;
+            font-size: 13px;
+            font-weight: 600;
+            text-decoration: none;
+            overflow-wrap: anywhere;
+        }
+
+        .track-collection:hover {
+            background: #e8eef8;
+        }
+
+        .track-collection-image {
+            flex: 0 0 auto;
+            width: 40px;
+            height: 30px;
+            border-radius: 4px;
+            background: #dde4f0;
+            object-fit: cover;
+        }
+
+        .track-collections-empty {
+            margin: 0;
+            font-size: 12px;
+            color: #888;
+        }
+
+        #trackActionsBox {
+            padding: 10px 12px;
+        }
+
+        #btnOpenPlanning {
+            display: block;
+            text-align: center;
+            padding: 8px 12px;
+            background: #4B77BE;
+            color: #fff;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: background-color 0.2s;
+        }
+
+        #btnOpenPlanning:hover {
+            background: #3a5f9e;
+        }
+
+        /* Rechts Karte und darunter das Höhenprofil, zusammen genau so hoch wie der Bildschirm */
+        #trackMain {
+            flex: 1 1 auto;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .detail-card {
+            background: #fff;
+            padding: 10px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            box-sizing: border-box;
+        }
+
+        #mapCard {
+            flex: 1 1 auto;
+            min-height: 280px;
+            display: flex;
+        }
+
+        #map {
+            flex: 1 1 auto;
+            border-radius: 8px;
+        }
+
+        #elevationCard {
+            flex: 0 0 auto;
+        }
+
+        #elevationChart {
+            height: 150px;
+        }
+
+        #elevationChart canvas {
+            width: 100% !important;
+            height: 100% !important;
+        }
+
+        .elevation-empty {
+            margin: 0;
+            font-size: 12px;
+            color: #888;
+        }
+    </style>
+</head>
+<body>
+
+<div id="MainMenuDashboard">
+    <button id="btnDashboard" onclick="window.location.href='{{ url_for('pages.index') }}'">Dashboard</button>
+    <button id="btnDiary" onclick="window.location.href='{{ url_for('pages.diary') }}'">Tagebuch</button>
+    <button id="btnBikeTracker" onclick="window.location.href='{{ url_for('biketracker.biketracker') }}'">BikeTracker</button>
+    <button id="btnEditGoals" onclick="window.location.href='{{ url_for('pages.mygoals') }}'">Ziele</button>
+    <button id="btnMyBikes" onclick="window.location.href='{{ url_for('pages.mybikes') }}'">Bikes</button>
+    <button id="btnSettings" onclick="window.location.href='{{ url_for('pages.appsettings') }}'">Settings</button>
+    <button id="btnStatistics" onclick="window.location.href='{{ url_for('pages.statistics') }}'">Statistik</button>
+    <button id="btnGallery" onclick="window.location.href='{{ url_for('pages.gallery') }}'">Galerie</button>
+    <button id="btnCollections" onclick="window.location.href='{{ url_for('pages.collections') }}'">Sammlungen</button>
+    <button id="btnPlanning" onclick="window.location.href='{{ url_for('pages.tour_planning') }}'">Planen</button>
+</div>
+
+<div id="pageContent">
+
+    <h1 class="title track-title">{{ track.name }}</h1>
+
+    <div id="trackLayout">
+        <div id="trackSidebar">
+            {% macro stat(label, value, unit="") %}
+                <div class="track-stat">
+                    <span class="track-stat-label">{{ label }}</span>
+                    <span class="track-stat-value">{{ value }}{% if unit %}<span class="track-stat-unit"> {{ unit }}</span>{% endif %}</span>
+                </div>
+            {% endmacro %}
+
+            <div class="track-box" id="trackStatsBox">
+                {{ stat("Aktivität", track.activity or "–") }}
+                {{ stat("Distanz", "{:,.1f}".format(track.distance_km).replace(",", "X").replace(".", ",").replace("X", "."), "km") }}
+                {{ stat("Aufstieg", "{:,}".format(track.ascent_m).replace(",", "."), "hm") }}
+                {{ stat("Trackpunkte", track.point_count) }}
+                {{ stat("Gespeichert", track.saved_display or "nie") }}
+                {{ stat("Bearbeitet", track.updated_display) }}
+                {% if track.dirty %}
+                    <div class="track-dirty">Die Planung hat ungespeicherte Änderungen; angezeigt wird der gespeicherte Stand.</div>
+                {% endif %}
+            </div>
+
+            <div class="track-box" id="trackCollectionsBox">
+                <div class="track-box-title">Sammlungen</div>
+                {% for c in collections %}
+                    <a class="track-collection" href="{{ url_for('pages.collection_detail', collection_id=c.id) }}">
+                        {% if c.has_image %}
+                            <img class="track-collection-image" src="{{ url_for('pages.collection_image', collection_id=c.id) }}" alt="">
+                        {% else %}
+                            <span class="track-collection-image"></span>
+                        {% endif %}
+                        {{ c.name }}
+                    </a>
+                {% else %}
+                    <p class="track-collections-empty">Der Track ist in keiner Sammlung.</p>
+                {% endfor %}
+            </div>
+
+            <div class="track-box" id="trackActionsBox">
+                <a id="btnOpenPlanning" href="{{ url_for('pages.tour_planning', plan=track.id) }}">In der Planung öffnen</a>
+            </div>
+        </div>
+
+        <div id="trackMain">
+            <div class="detail-card" id="mapCard">
+                <div id="map"></div>
+            </div>
+
+            <div class="detail-card" id="elevationCard">
+                {% if track.has_elevation %}
+                    <div id="elevationChart">
+                        <canvas id="elevationCanvas"></canvas>
+                    </div>
+                {% else %}
+                    <p class="elevation-empty">Für diesen Track liegen keine Höhendaten vor.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    window.onload = function() {
+        const coords = {{ track.coords|tojson }};
+        const homebase = {{ homebase|tojson }};
+
+        const map = L.map("map");
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            attribution: "&copy; OpenStreetMap contributors"
+        }).addTo(map);
+
+        if (!coords.length) {
+            map.setView([homebase.lat, homebase.lon], homebase.zoom);
+            return;
+        }
+
+        const line = L.polyline(coords.map(c => [c[0], c[1]]), { color: "#1C3F75", weight: 4, opacity: 0.85 }).addTo(map);
+        // Startpunkt wie in der Tourplanung grün markieren
+        L.circleMarker([coords[0][0], coords[0][1]], {
+            radius: 7, color: "#1e8449", weight: 2, fillColor: "#27ae60", fillOpacity: 1
+        }).addTo(map);
+
+        const chartCanvas = document.getElementById("elevationCanvas");
+        if (chartCanvas) {
+            drawElevationProfile(map, coords, chartCanvas);
+        }
+
+        setTimeout(() => {
+            map.invalidateSize();
+            map.fitBounds(line.getBounds(), { padding: [20, 20] });
+        }, 0);
+    };
+
+    // Höhenprofil wie auf der Tourdetailseite; die x-Achse ist die zurückgelegte Strecke
+    function drawElevationProfile(map, coords, chartCanvas) {
+        const toRad = deg => deg * Math.PI / 180;
+        const distancesKm = [0];
+        for (let i = 1; i < coords.length; i++) {
+            const [lat1, lon1] = coords[i - 1];
+            const [lat2, lon2] = coords[i];
+            const a = Math.sin(toRad(lat2 - lat1) / 2) ** 2
+                + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(toRad(lon2 - lon1) / 2) ** 2;
+            distancesKm.push(distancesKm[i - 1] + 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+        }
+
+        // Markierung auf der Karte, folgt der Maus über dem Höhenprofil
+        const hoverMarker = L.circleMarker([0, 0], {
+            radius: 7,
+            color: "#fff",
+            weight: 2,
+            fillColor: "#E8590C",
+            fillOpacity: 1
+        });
+
+        function showHoverMarker(index) {
+            const point = coords[index];
+            if (!point) return;
+            hoverMarker.setLatLng([point[0], point[1]]);
+            if (!map.hasLayer(hoverMarker)) hoverMarker.addTo(map);
+        }
+
+        function hideHoverMarker() {
+            if (map.hasLayer(hoverMarker)) map.removeLayer(hoverMarker);
+        }
+
+        // Senkrechte Linie an der Hover-Position im Höhenprofil
+        const hoverLinePlugin = {
+            id: "hoverLine",
+            afterDatasetsDraw(chart) {
+                const active = chart.tooltip && chart.tooltip.getActiveElements();
+                if (!active || active.length === 0) return;
+                const x = active[0].element.x;
+                const { top, bottom } = chart.chartArea;
+                const c = chart.ctx;
+                c.save();
+                c.beginPath();
+                c.moveTo(x, top);
+                c.lineTo(x, bottom);
+                c.lineWidth = 1;
+                c.strokeStyle = "#E8590C";
+                c.stroke();
+                c.restore();
+            }
+        };
+
+        chartCanvas.addEventListener("mouseleave", hideHoverMarker);
+
+        new Chart(chartCanvas.getContext("2d"), {
+            plugins: [hoverLinePlugin],
+            type: "line",
+            data: {
+                datasets: [{
+                    label: "Höhe (m)",
+                    data: coords.map((c, i) => ({ x: distancesKm[i], y: c[2] })),
+                    borderColor: "#4B77BE",
+                    backgroundColor: "rgba(75, 119, 190, 0.2)",
+                    fill: true,
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    // Punkte ohne Höhe (Luftlinien) auslassen und die Linie darüber hinweg verbinden
+                    spanGaps: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                // Nächsten Punkt entlang der x-Achse treffen, nicht nur direkt auf der Linie
+                interaction: { mode: "index", intersect: false },
+                onHover: (event, elements) => {
+                    if (elements.length > 0) {
+                        showHoverMarker(elements[0].index);
+                    } else {
+                        hideHoverMarker();
+                    }
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        displayColors: false,
+                        callbacks: {
+                            title: items => `${distancesKm[items[0].dataIndex].toFixed(1).replace(".", ",")} km`,
+                            label: item => `Höhe: ${Math.round(item.parsed.y)} m`
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        type: "linear",
+                        min: 0,
+                        max: distancesKm[distancesKm.length - 1],
+                        title: { display: true, text: "Strecke in km" },
+                        ticks: { callback: value => value.toLocaleString("de-DE", { maximumFractionDigits: 1 }) }
+                    },
+                    y: {
+                        beginAtZero: false,
+                        title: { display: true, text: "Höhe in Metern" }
+                    }
+                }
+            }
+        });
+    }
+</script>
+
+</body>
+</html>

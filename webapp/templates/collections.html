@@ -87,82 +87,6 @@
             box-shadow: none;
         }
 
-        /* Formular für eine neue Sammlung */
-        .collection-form-wrapper {
-            display: flex;
-            justify-content: center;
-            padding-top: 10vh;
-        }
-
-        .collection-form {
-            width: 100%;
-            max-width: 420px;
-            background: #fff;
-            padding: 25px;
-            border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-            border-left: 4px solid #4B77BE;
-        }
-
-        .detail-row {
-            margin-bottom: 15px;
-        }
-
-        .detail-row label {
-            display: block;
-            font-size: 12px;
-            font-weight: 600;
-            color: #666;
-            margin-bottom: 4px;
-        }
-
-        .detail-row input[type="text"] {
-            width: 100%;
-            padding: 8px 12px;
-            border: 1px solid #c0d3e9;
-            border-radius: 6px;
-            background-color: #f9fbfd;
-            font-size: 14px;
-            box-sizing: border-box;
-        }
-
-        .detail-row input[type="file"] {
-            font-size: 13px;
-        }
-
-        .collection-preview {
-            display: none;
-            margin-top: 10px;
-            width: 100%;
-            aspect-ratio: 4 / 3;
-            object-fit: cover;
-            border-radius: 8px;
-        }
-
-        .form-actions {
-            margin-top: 25px;
-            display: flex;
-            gap: 10px;
-        }
-
-        .btn-save {
-            background: #2eaf4a !important;
-            flex: 2;
-        }
-
-        .btn-cancel {
-            background: #666 !important;
-            flex: 1;
-        }
-
-        .msg-error {
-            background: #f8d7da;
-            color: #721c24;
-            padding: 12px;
-            border-radius: 12px;
-            margin-bottom: 15px;
-        }
-
         [hidden] {
             display: none !important;
         }
@@ -211,76 +135,21 @@
         {% endif %}
     </div>
 
-    <div class="collection-form-wrapper" id="collectionFormWrapper" {% if not error %}hidden{% endif %}>
-        <form class="collection-form" method="POST" enctype="multipart/form-data">
-            {% if error %}
-                <div class="msg-error">{{ error }}</div>
-            {% endif %}
-
-            <div class="detail-row">
-                <label for="collection-name">Name der Sammlung</label>
-                <input type="text" name="name" id="collection-name" maxlength="255" value="{{ form_name }}" required>
-            </div>
-
-            <div class="detail-row">
-                <label for="collection-image">Bild</label>
-                <input type="file" name="image" id="collection-image" accept="image/*">
-                <img class="collection-preview" id="collectionPreview" alt="Vorschau">
-            </div>
-
-            <div class="form-actions">
-                <button type="button" class="btn-cancel" id="collectionCancel">Abbrechen</button>
-                <button type="submit" class="btn-save">Speichern</button>
-            </div>
-        </form>
-    </div>
+    {% set form_action = url_for('pages.collections') %}
+    {% set initial_name = "" %}
+    {% include "_collection_form.html" %}
 </div>
 
 <script>
     const overview = document.getElementById("collectionsOverview");
-    const formWrapper = document.getElementById("collectionFormWrapper");
-    const nameInput = document.getElementById("collection-name");
-    const imageInput = document.getElementById("collection-image");
-    const preview = document.getElementById("collectionPreview");
-
-    function showForm(visible) {
-        overview.hidden = visible;
-        formWrapper.hidden = !visible;
-        if (visible) {
-            nameInput.focus();
-        }
-    }
+    const collectionForm = initCollectionForm(() => { overview.hidden = false; });
 
     document.querySelectorAll("[data-new-collection]").forEach((button) => {
-        button.addEventListener("click", () => showForm(true));
+        button.addEventListener("click", () => {
+            overview.hidden = true;
+            collectionForm.show();
+        });
     });
-
-    document.getElementById("collectionCancel").addEventListener("click", () => {
-        formWrapper.querySelector("form").reset();
-        nameInput.value = "";
-        preview.style.display = "none";
-        formWrapper.querySelector(".msg-error")?.remove();
-        showForm(false);
-    });
-
-    // Vorschau des gewählten Bildes unter dem Dateifeld
-    imageInput.addEventListener("change", () => {
-        const file = imageInput.files[0];
-        if (preview.src) {
-            URL.revokeObjectURL(preview.src);
-        }
-        if (file) {
-            preview.src = URL.createObjectURL(file);
-            preview.style.display = "block";
-        } else {
-            preview.removeAttribute("src");
-            preview.style.display = "none";
-        }
-    });
-
-    if (!formWrapper.hidden) {
-        nameInput.focus();
-    }
 </script>
 
 </body>

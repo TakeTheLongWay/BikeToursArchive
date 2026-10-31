@@ -6,6 +6,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <style>
         .collection-header {
+            max-width: 900px;
             display: flex;
             align-items: center;
             gap: 16px;
@@ -21,6 +22,35 @@
 
         .collection-back:hover {
             text-decoration: underline;
+        }
+
+        .collection-header-actions {
+            display: flex;
+            gap: 6px;
+            margin-left: auto;
+        }
+
+        .collection-header-actions button {
+            padding: 6px 14px;
+            font-size: 13px;
+        }
+
+        .btn-edit {
+            background: #e8eef8;
+            color: #1C3F75;
+        }
+
+        .btn-edit:hover {
+            background: #d6e1f3;
+        }
+
+        .btn-delete {
+            background: transparent;
+            color: #c0392b;
+        }
+
+        .btn-delete:hover {
+            background: #fbeaea;
         }
 
         .collection-header-image {
@@ -112,7 +142,11 @@
             color: #888;
         }
 
-        .msg-error {
+        [hidden] {
+            display: none !important;
+        }
+
+        .collection-card .msg-error {
             background: #f8d7da;
             color: #721c24;
             padding: 12px;
@@ -140,11 +174,17 @@
 
     <a class="collection-back" href="{{ url_for('pages.collections') }}">&larr; Alle Sammlungen</a>
 
+    <!-- Ansicht der Sammlung; bei einem Fehler im Formular wird direkt das Formular gezeigt -->
+    <div id="collectionContent" {% if error %}hidden{% endif %}>
     <div class="collection-header">
         {% if collection.has_image %}
             <img class="collection-header-image" src="{{ url_for('pages.collection_image', collection_id=collection.id) }}" alt="{{ collection.name }}">
         {% endif %}
         <h1 class="title">{{ collection.name }}</h1>
+        <div class="collection-header-actions">
+            <button type="button" class="btn-edit" id="collectionEdit">Bearbeiten</button>
+            <button type="button" class="btn-delete" id="collectionDelete">Löschen</button>
+        </div>
     </div>
 
     <div class="collection-card">
@@ -165,7 +205,7 @@
                 <tbody>
                     {% for t in tracks %}
                     <tr>
-                        <td><a class="track-link" href="{{ url_for('pages.tour_planning', plan=t.id) }}" title="In der Tourplanung öffnen">{{ t.name }}</a></td>
+                        <td><a class="track-link" href="{{ url_for('pages.track_detail', plan_id=t.id) }}" title="Track anzeigen">{{ t.name }}</a></td>
                         <td>{{ t.activity }}</td>
                         <td class="num">{{ "{:,.1f}".format(t.distance_km).replace(",", "X").replace(".", ",").replace("X", ".") }} km</td>
                         <td class="num">{{ "{:,}".format(t.ascent_m).replace(",", ".") }} m</td>
@@ -194,9 +234,52 @@
             <p class="collection-hint">Es gibt noch keine gespeicherten Tracks. Tracks werden unter „Planen“ erstellt und gespeichert.</p>
         {% endif %}
     </div>
+    </div>
+
+    {% set form_action = url_for('pages.collection_detail', collection_id=collection.id) %}
+    {% set initial_name = collection.name %}
+    {% set current_image_url = url_for('pages.collection_image', collection_id=collection.id) if collection.has_image else "" %}
+    {% include "_collection_form.html" %}
+</div>
+
+<div id="deleteConfirmModal" class="confirm-modal-backdrop" hidden>
+    <div
+        class="confirm-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="deleteConfirmTitle"
+        aria-describedby="deleteConfirmText"
+    >
+        <h3 id="deleteConfirmTitle">Sicherheitsabfrage</h3>
+        <p id="deleteConfirmText">Willst Du die Sammlung „{{ collection.name }}“ wirklich löschen? Die Tracks selbst bleiben erhalten.</p>
+        <form class="confirm-modal-actions" method="POST" action="{{ url_for('pages.collection_delete', collection_id=collection.id) }}">
+            <button id="confirmDeleteNo" type="button">Nein</button>
+            <button id="confirmDeleteYes" type="submit">Ja</button>
+        </form>
+    </div>
 </div>
 
 <script>
+    const collectionContent = document.getElementById("collectionContent");
+    const collectionForm = initCollectionForm(() => { collectionContent.hidden = false; });
+
+    document.getElementById("collectionEdit").addEventListener("click", () => {
+        collectionContent.hidden = true;
+        collectionForm.show();
+    });
+
+    const deleteConfirmModal = document.getElementById("deleteConfirmModal");
+    document.getElementById("collectionDelete").addEventListener("click", () => {
+        deleteConfirmModal.hidden = false;
+        document.getElementById("confirmDeleteNo").focus();
+    });
+    document.getElementById("confirmDeleteNo").addEventListener("click", () => {
+        deleteConfirmModal.hidden = true;
+    });
+    document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") deleteConfirmModal.hidden = true;
+    });
+
     const COLLECTION_ID = {{ collection.id }};
     const errorEl = document.getElementById("collectionError");
 

@@ -320,7 +320,7 @@ th {
     max-width: none;
 }
 
-/* Bestätigungsdialog (Dashboard: Tour löschen, BikeTracker: TCX ergänzen/ersetzen) */
+/* Bestätigungsdialog (Dashboard: Tour löschen, BikeTracker: TCX ergänzen/ersetzen, Sammlung löschen) */
 .confirm-modal-backdrop[hidden] {
     display: none;
 }
@@ -372,4 +372,110 @@ th {
 
 .confirm-modal-actions .confirm-modal-secondary:hover {
     background-color: #b3bfd6;
+}
+
+/* Formular zum Anlegen/Bearbeiten einer Sammlung (templates/_collection_form.html) */
+.collection-form-wrapper {
+    display: flex;
+    justify-content: center;
+    padding-top: 10vh;
+}
+
+.collection-form {
+    width: 100%;
+    max-width: 420px;
+    background: #fff;
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    border-left: 4px solid #4B77BE;
+}
+
+.collection-form .detail-row {
+    margin-bottom: 15px;
+}
+
+.collection-form .detail-row label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: #666;
+    margin-bottom: 4px;
+}
+
+.collection-form .detail-row input[type="text"] {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #c0d3e9;
+    border-radius: 6px;
+    background-color: #f9fbfd;
+    font-size: 14px;
+    box-sizing: border-box;
+}
+
+/* Bildfeld: URL einfügen oder über "Durchsuchen" eine Datei wählen */
+.collection-form .image-source {
+    display: flex;
+    gap: 6px;
+}
+
+.collection-form .image-source input[type="text"] {
+    flex: 1;
+    min-width: 0;
+}
+
+.collection-form .btn-browse {
+    padding: 6px 12px;
+    font-size: 13px;
+    white-space: nowrap;
+    background: #e8eef8;
+    color: #1C3F75;
+}
+
+.collection-form .btn-browse:hover {
+    background: #d6e1f3;
+}
+
+.collection-form .collection-preview {
+    display: none;
+    margin-top: 10px;
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+    border-radius: 8px;
+}
+
+.collection-form .form-actions {
+    margin-top: 25px;
+    display: flex;
+    gap: 10px;
+}
+
+.collection-form .btn-save {
+    background: #2eaf4a !important;
+    flex: 2;
+}
+
+.collection-form .btn-cancel {
+    background: #666 !important;
+    flex: 1;
+}
+
+.collection-form .msg-error {
+    background: #f8d7da;
+    color: #721c24;
+    padding: 12px;
+    border-radius: 12px;
+    margin-bottom: 15px;
+}
+
+.collection-form .detail-row label.remove-image {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+    font-size: 13px;
+    font-weight: normal;
+    color: #333;
+    cursor: pointer;
 }

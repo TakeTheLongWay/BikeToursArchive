@@ -1,0 +1,40 @@
+{#- Formular zum Anlegen bzw. Bearbeiten einer Sammlung; Logik in static/collection_form.js.
+    Erwartet: form_action, form_name, form_image_url, error, initial_name und beim Bearbeiten
+    current_image_url (bisheriges Bild, leer = keins) -#}
+<div class="collection-form-wrapper" id="collectionFormWrapper" {% if not error %}hidden{% endif %}>
+    <form class="collection-form" id="collectionForm" method="POST" action="{{ form_action }}" enctype="multipart/form-data"
+          data-initial-name="{{ initial_name }}" data-current-image="{{ current_image_url or '' }}">
+        {% if error %}
+            <div class="msg-error">{{ error }}</div>
+        {% endif %}
+
+        <div class="detail-row">
+            <label for="collection-name">Name der Sammlung</label>
+            <input type="text" name="name" id="collection-name" maxlength="255" value="{{ form_name }}" required>
+        </div>
+
+        <div class="detail-row">
+            <label for="collection-image-url">Bild</label>
+            <div class="image-source">
+                <input type="text" name="image_url" id="collection-image-url" value="{{ form_image_url }}"
+                       placeholder="{{ 'Neue Bild-URL oder Datei, leer = Bild behalten' if current_image_url else 'Bild-URL einfügen oder Datei wählen' }}"
+                       autocomplete="off">
+                <button type="button" class="btn-browse" id="collectionBrowse">Durchsuchen…</button>
+            </div>
+            <input type="file" name="image" id="collection-image" accept="image/*" hidden>
+            {% if current_image_url %}
+                <label class="remove-image">
+                    <input type="checkbox" name="remove_image" value="1" id="collection-remove-image">
+                    Bild entfernen
+                </label>
+            {% endif %}
+            <img class="collection-preview" id="collectionPreview" alt="Vorschau">
+        </div>
+
+        <div class="form-actions">
+            <button type="button" class="btn-cancel" id="collectionCancel">Abbrechen</button>
+            <button type="submit" class="btn-save">Speichern</button>
+        </div>
+    </form>
+</div>
+<script src="{{ url_for('static', filename='collection_form.js') }}"></script>

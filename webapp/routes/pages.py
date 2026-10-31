@@ -2,6 +2,8 @@ import io
 import json
 import mimetypes
 import mysql.connector
+import requests
+from urllib.parse import urlparse
 from flask import Blueprint, current_app, jsonify, redirect, render_template, request, send_file, send_from_directory, url_for
 from datetime import date, datetime
 from ..db.database import HOMEBASE_SETTINGS, mysql_connection_wrapper
@@ -133,9 +135,7 @@ def statistics():
     return render_template("statistics.html")
 
 
-@pages_bp.route("/tourplanung")
-@mysql_connection_wrapper
-def tour_planning(cursor):
+def _load_homebase(cursor):
     cursor.execute(
         "SELECT setting_key, setting_value FROM appsettings WHERE setting_key IN (%s, %s, %s)",
         tuple(HOMEBASE_SETTINGS),
@@ -149,14 +149,19 @@ def tour_planning(cursor):
         except (KeyError, ValueError):
             return convert(HOMEBASE_SETTINGS[key][0])
 
-    homebase = {
+    return {
         "lat": setting("homebase.lat", float),
         "lon": setting("homebase.lon", float),
         "zoom": setting("homebase.zoom", int),
     }
+
+
+@pages_bp.route("/tourplanung")
+@mysql_connection_wrapper
+def tour_planning(cursor):
     return render_template(
         "tour_planning.html",
-        homebase=homebase,
+        homebase=_load_homebase(cursor),
         activities=current_app.config["PLANNING_ACTIVITIES"],
         # ?plan=<id> z. B. aus einer Sammlung: diese Planung statt der zuletzt bearbeiteten öffnen
         open_plan_id=request.args.get("plan", type=int),
@@ -332,6 +337,75 @@ def gallery(cursor):
 
 
 COLLECTION_IMAGE_MAX_BYTES = 10 * 1024 * 1024
+COLLECTION_IMAGE_DOWNLOAD_TIMEOUT_S = 15
+
+
+def _download_collection_image(image_url):
+    """Bild von image_url laden; liefert (Bytes, MIME-Typ), ValueError mit Meldung für das Formular."""
+    if urlparse(image_url).scheme not in ("http", "https") or not urlparse(image_url).netloc:
+        raise ValueError("Die Bild-URL muss mit http:// oder https:// beginnen.")
+
+    try:
+        # Manche Server liefern ohne Browser-User-Agent keine Bilder aus
+        with requests.get(
+            image_url,
+            stream=True,
+            timeout=COLLECTION_IMAGE_DOWNLOAD_TIMEOUT_S,
+            headers={"User-Agent": "Mozilla/5.0 (MyBikeLog)", "Accept": "image/*"},
+        ) as response:
+            response.raise_for_status()
+            # Ohne Bild-Content-Type zählt die Dateiendung der URL
+            mimetype = (response.headers.get("Content-Type") or "").split(";")[0].strip().lower()
+            if not mimetype.startswith("image/"):
+                mimetype = mimetypes.guess_type(urlparse(image_url).path)[0] or mimetype
+            if not mimetype.startswith("image/"):
+                raise ValueError("Unter der URL liegt kein Bild.")
+
+            # Größe beim Lesen begrenzen, Content-Length fehlt oft
+            data = bytearray()
+            for chunk in response.iter_content(64 * 1024):
+                data.extend(chunk)
+                if len(data) > COLLECTION_IMAGE_MAX_BYTES:
+                    raise ValueError("Das Bild ist zu groß (max. 10 MB).")
+    except requests.RequestException as exc:
+        current_app.logger.warning("Sammlungsbild %s nicht ladbar: %s", image_url, exc)
+        raise ValueError("Das Bild konnte nicht von der URL geladen werden.") from exc
+
+    if not data:
+        raise ValueError("Unter der URL liegt kein Bild.")
+    return bytes(data), mimetype
+
+
+def _read_collection_form():
+    """Name und Bild (Datei oder URL) aus dem Sammlungsformular; error ist None oder die Meldung."""
+    form = {
+        "name": (request.form.get("name") or "").strip(),
+        "image_url": (request.form.get("image_url") or "").strip(),
+        "image": None,
+        "image_mimetype": None,
+        "error": None,
+    }
+    upload = request.files.get("image")
+    if upload and upload.filename:
+        form["image"] = upload.read()
+        form["image_mimetype"] = upload.mimetype or mimetypes.guess_type(upload.filename)[0]
+        # Eine gewählte Datei hat Vorrang vor der URL
+        form["image_url"] = ""
+
+    if not form["name"]:
+        form["error"] = "Bitte einen Namen für die Sammlung eingeben."
+    elif form["image_url"]:
+        try:
+            form["image"], form["image_mimetype"] = _download_collection_image(form["image_url"])
+        except ValueError as exc:
+            form["error"] = str(exc)
+
+    if not form["error"] and form["image"]:
+        if not (form["image_mimetype"] or "").startswith("image/"):
+            form["error"] = "Die hochgeladene Datei ist kein Bild."
+        elif len(form["image"]) > COLLECTION_IMAGE_MAX_BYTES:
+            form["error"] = "Das Bild ist zu groß (max. 10 MB)."
+    return form
 
 
 @pages_bp.route("/sammlungen", methods=["GET", "POST"])
@@ -339,26 +413,16 @@ COLLECTION_IMAGE_MAX_BYTES = 10 * 1024 * 1024
 def collections(cursor):
     error = None
     form_name = ""
+    form_image_url = ""
 
     if request.method == "POST":
-        form_name = (request.form.get("name") or "").strip()
-        upload = request.files.get("image")
-        image = upload.read() if upload and upload.filename else None
-        image_mimetype = None
-        if image:
-            image_mimetype = upload.mimetype or mimetypes.guess_type(upload.filename)[0]
-
-        if not form_name:
-            error = "Bitte einen Namen für die Sammlung eingeben."
-        elif image and not (image_mimetype or "").startswith("image/"):
-            error = "Die hochgeladene Datei ist kein Bild."
-        elif image and len(image) > COLLECTION_IMAGE_MAX_BYTES:
-            error = "Das Bild ist zu groß (max. 10 MB)."
-        else:
+        form = _read_collection_form()
+        error, form_name, form_image_url = form["error"], form["name"], form["image_url"]
+        if not error:
             try:
                 cursor.execute(
                     "INSERT INTO collections (name, image, image_mimetype) VALUES (%s, %s, %s)",
-                    (form_name, image, image_mimetype),
+                    (form_name, form["image"], form["image_mimetype"]),
                 )
             except mysql.connector.IntegrityError:
                 error = f"Eine Sammlung '{form_name}' gibt es bereits."
@@ -380,15 +444,22 @@ def collections(cursor):
         collections=cursor.fetchall(),
         error=error,
         form_name=form_name,
+        form_image_url=form_image_url,
     )
 
 
-def _plan_track_summary(row):
-    # Kennzahlen aus dem gespeicherten Stand der Planung (ohne Speicherung: Arbeitsstand)
+def _load_plan_json(value):
+    return json.loads(value) if isinstance(value, (str, bytes, bytearray)) else value
+
+
+def _plan_track(row):
+    # Track aus dem gespeicherten Stand der Planung (ohne Speicherung: Arbeitsstand)
     data = row["saved_data"] if row["saved_data"] is not None else row["draft"]
-    if isinstance(data, (str, bytes, bytearray)):
-        data = json.loads(data)
-    track = (data or {}).get("track") or {}
+    return (_load_plan_json(data) or {}).get("track") or {}
+
+
+def _plan_track_summary(row):
+    track = _plan_track(row)
     segments = track.get("segments") or []
     activities = current_app.config["PLANNING_ACTIVITIES"]
     return {
@@ -401,7 +472,56 @@ def _plan_track_summary(row):
     }
 
 
-@pages_bp.route("/sammlungen/<int:collection_id>")
+@pages_bp.route("/track/<int:plan_id>")
+@mysql_connection_wrapper
+def track_detail(cursor, plan_id):
+    cursor.execute(
+        "SELECT id, name, draft, saved_data, saved_at, updated_at FROM tour_plans WHERE id = %s",
+        (plan_id,),
+    )
+    row = cursor.fetchone()
+    if not row:
+        return "Track nicht gefunden", 404
+
+    track = _plan_track(row)
+    # Verlauf für Karte und Höhenprofil: Segmentkoordinaten [lat, lon, Höhe] aneinandergereiht,
+    # ohne die doppelten Punkte an den Segmentgrenzen; ohne Segmente die gesetzten Punkte.
+    # Höhe ist None, wenn BRouter keine geliefert hat (Luftlinien)
+    coords = []
+    for coord in [c for seg in track.get("segments") or [] for c in seg.get("coords") or []]:
+        if coords and coords[-1][:2] == coord[:2]:
+            continue
+        coords.append([coord[0], coord[1], coord[2] if len(coord) > 2 else None])
+    coords = coords or [[p[0], p[1], None] for p in track.get("points") or []]
+
+    cursor.execute(
+        """
+        SELECT c.id, c.name, c.image IS NOT NULL AS has_image
+        FROM collection_tour_plans ctp
+        JOIN collections c ON c.id = ctp.collection_id
+        WHERE ctp.tour_plan_id = %s
+        ORDER BY c.name ASC
+        """,
+        (plan_id,),
+    )
+    return render_template(
+        "track_detail.html",
+        track=dict(
+            _plan_track_summary(row),
+            point_count=len(track.get("points") or []),
+            updated_display=format_date_display(row["updated_at"]) if row["updated_at"] else "",
+            # In der Planung gibt es Änderungen, die noch nicht gespeichert sind
+            dirty=row["saved_data"] is not None and _load_plan_json(row["draft"]) != _load_plan_json(row["saved_data"]),
+            coords=coords,
+            has_elevation=any(c[2] is not None for c in coords),
+        ),
+        collections=cursor.fetchall(),
+        # Kartenausschnitt für einen Track ohne Punkte
+        homebase=_load_homebase(cursor),
+    )
+
+
+@pages_bp.route("/sammlungen/<int:collection_id>", methods=["GET", "POST"])
 @mysql_connection_wrapper
 def collection_detail(cursor, collection_id):
     cursor.execute(
@@ -411,6 +531,31 @@ def collection_detail(cursor, collection_id):
     collection = cursor.fetchone()
     if not collection:
         return "Sammlung nicht gefunden", 404
+
+    # Bearbeiten: leeres Bildfeld behält das bisherige Bild, "Bild entfernen" löscht es
+    error = None
+    form_name = collection["name"]
+    form_image_url = ""
+    if request.method == "POST":
+        form = _read_collection_form()
+        error, form_name, form_image_url = form["error"], form["name"], form["image_url"]
+        if not error:
+            try:
+                cursor.execute("UPDATE collections SET name = %s WHERE id = %s", (form_name, collection_id))
+                if form["image"]:
+                    cursor.execute(
+                        "UPDATE collections SET image = %s, image_mimetype = %s WHERE id = %s",
+                        (form["image"], form["image_mimetype"], collection_id),
+                    )
+                elif request.form.get("remove_image"):
+                    cursor.execute(
+                        "UPDATE collections SET image = NULL, image_mimetype = NULL WHERE id = %s",
+                        (collection_id,),
+                    )
+            except mysql.connector.IntegrityError:
+                error = f"Eine Sammlung '{form_name}' gibt es bereits."
+            else:
+                return redirect(url_for("pages.collection_detail", collection_id=collection_id))
 
     cursor.execute(
         """
@@ -439,7 +584,18 @@ def collection_detail(cursor, collection_id):
         collection=collection,
         tracks=tracks,
         available_plans=cursor.fetchall(),
+        error=error,
+        form_name=form_name,
+        form_image_url=form_image_url,
     )
+
+
+@pages_bp.route("/sammlungen/<int:collection_id>/loeschen", methods=["POST"])
+@mysql_connection_wrapper
+def collection_delete(cursor, collection_id):
+    # Die Zuordnungen entfallen per ON DELETE CASCADE, die Tracks selbst bleiben erhalten
+    cursor.execute("DELETE FROM collections WHERE id = %s", (collection_id,))
+    return redirect(url_for("pages.collections"))
 
 
 @pages_bp.route("/sammlungen/<int:collection_id>/bild")
