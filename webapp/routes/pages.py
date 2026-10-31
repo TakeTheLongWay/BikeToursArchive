@@ -1,6 +1,8 @@
 import io
+import json
 import mimetypes
-from flask import Blueprint, current_app, jsonify, render_template, request, send_file, send_from_directory
+import mysql.connector
+from flask import Blueprint, current_app, jsonify, redirect, render_template, request, send_file, send_from_directory, url_for
 from datetime import date, datetime
 from ..db.database import HOMEBASE_SETTINGS, mysql_connection_wrapper
 from ..services.biketracker_source import BikeTrackerSourceError, get_source
@@ -156,6 +158,8 @@ def tour_planning(cursor):
         "tour_planning.html",
         homebase=homebase,
         activities=current_app.config["PLANNING_ACTIVITIES"],
+        # ?plan=<id> z. B. aus einer Sammlung: diese Planung statt der zuletzt bearbeiteten öffnen
+        open_plan_id=request.args.get("plan", type=int),
     )
 
 
@@ -324,6 +328,131 @@ def gallery(cursor):
         years=years,
         image_count=len(all_images) - video_count,
         video_count=video_count,
+    )
+
+
+COLLECTION_IMAGE_MAX_BYTES = 10 * 1024 * 1024
+
+
+@pages_bp.route("/sammlungen", methods=["GET", "POST"])
+@mysql_connection_wrapper
+def collections(cursor):
+    error = None
+    form_name = ""
+
+    if request.method == "POST":
+        form_name = (request.form.get("name") or "").strip()
+        upload = request.files.get("image")
+        image = upload.read() if upload and upload.filename else None
+        image_mimetype = None
+        if image:
+            image_mimetype = upload.mimetype or mimetypes.guess_type(upload.filename)[0]
+
+        if not form_name:
+            error = "Bitte einen Namen für die Sammlung eingeben."
+        elif image and not (image_mimetype or "").startswith("image/"):
+            error = "Die hochgeladene Datei ist kein Bild."
+        elif image and len(image) > COLLECTION_IMAGE_MAX_BYTES:
+            error = "Das Bild ist zu groß (max. 10 MB)."
+        else:
+            try:
+                cursor.execute(
+                    "INSERT INTO collections (name, image, image_mimetype) VALUES (%s, %s, %s)",
+                    (form_name, image, image_mimetype),
+                )
+            except mysql.connector.IntegrityError:
+                error = f"Eine Sammlung '{form_name}' gibt es bereits."
+            else:
+                # Post/Redirect/Get, damit ein Neuladen die Sammlung nicht doppelt anlegt
+                return redirect(url_for("pages.collections"))
+
+    cursor.execute(
+        """
+        SELECT c.id, c.name, c.image IS NOT NULL AS has_image, COUNT(ctp.tour_plan_id) AS track_count
+        FROM collections c
+        LEFT JOIN collection_tour_plans ctp ON ctp.collection_id = c.id
+        GROUP BY c.id, c.name, has_image
+        ORDER BY c.name ASC
+        """
+    )
+    return render_template(
+        "collections.html",
+        collections=cursor.fetchall(),
+        error=error,
+        form_name=form_name,
+    )
+
+
+def _plan_track_summary(row):
+    # Kennzahlen aus dem gespeicherten Stand der Planung (ohne Speicherung: Arbeitsstand)
+    data = row["saved_data"] if row["saved_data"] is not None else row["draft"]
+    if isinstance(data, (str, bytes, bytearray)):
+        data = json.loads(data)
+    track = (data or {}).get("track") or {}
+    segments = track.get("segments") or []
+    activities = current_app.config["PLANNING_ACTIVITIES"]
+    return {
+        "id": row["id"],
+        "name": row["name"],
+        "activity": activities.get(track.get("activity"), ""),
+        "distance_km": sum(seg.get("distance_m") or 0 for seg in segments) / 1000,
+        "ascent_m": sum(seg.get("ascent_m") or 0 for seg in segments),
+        "saved_display": format_date_display(row["saved_at"]) if row["saved_at"] else "",
+    }
+
+
+@pages_bp.route("/sammlungen/<int:collection_id>")
+@mysql_connection_wrapper
+def collection_detail(cursor, collection_id):
+    cursor.execute(
+        "SELECT id, name, image IS NOT NULL AS has_image FROM collections WHERE id = %s",
+        (collection_id,),
+    )
+    collection = cursor.fetchone()
+    if not collection:
+        return "Sammlung nicht gefunden", 404
+
+    cursor.execute(
+        """
+        SELECT p.id, p.name, p.draft, p.saved_data, p.saved_at
+        FROM collection_tour_plans ctp
+        JOIN tour_plans p ON p.id = ctp.tour_plan_id
+        WHERE ctp.collection_id = %s
+        ORDER BY p.name ASC
+        """,
+        (collection_id,),
+    )
+    tracks = [_plan_track_summary(row) for row in cursor.fetchall()]
+
+    # Auswahl zum Hinzufügen: gespeicherte Tracks, die noch nicht in der Sammlung liegen
+    cursor.execute(
+        """
+        SELECT p.id, p.name FROM tour_plans p
+        WHERE p.saved_at IS NOT NULL
+          AND p.id NOT IN (SELECT tour_plan_id FROM collection_tour_plans WHERE collection_id = %s)
+        ORDER BY p.name ASC
+        """,
+        (collection_id,),
+    )
+    return render_template(
+        "collection_detail.html",
+        collection=collection,
+        tracks=tracks,
+        available_plans=cursor.fetchall(),
+    )
+
+
+@pages_bp.route("/sammlungen/<int:collection_id>/bild")
+@mysql_connection_wrapper
+def collection_image(cursor, collection_id):
+    cursor.execute("SELECT image, image_mimetype FROM collections WHERE id = %s", (collection_id,))
+    row = cursor.fetchone()
+    if not row or not row["image"]:
+        return "Bild nicht gefunden", 404
+
+    return send_file(
+        io.BytesIO(row["image"]),
+        mimetype=row["image_mimetype"] or "application/octet-stream",
     )
 
 

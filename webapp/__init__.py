@@ -8,7 +8,7 @@ from flask import Flask
 
 from .config import Config
 from .db.database import ensure_database
-from .routes import appsettings_bp, diary_bp, goals_bp, imports_bp, pages_bp, planning_bp, stats_bp, tours_bp
+from .routes import appsettings_bp, collections_bp, diary_bp, goals_bp, imports_bp, pages_bp, planning_bp, stats_bp, tours_bp
 from .routes.biketracker import biketracker_bp
 
 def create_app():
@@ -33,6 +33,7 @@ def create_app():
 
     app.register_blueprint(pages_bp)
     app.register_blueprint(appsettings_bp)
+    app.register_blueprint(collections_bp)
     app.register_blueprint(imports_bp)
     app.register_blueprint(goals_bp)
     app.register_blueprint(tours_bp)

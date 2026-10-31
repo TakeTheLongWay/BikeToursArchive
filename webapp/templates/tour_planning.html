@@ -102,6 +102,44 @@
             display: none;
         }
 
+        /* ── Auswahl der Sammlungen für den aktuellen Track ── */
+        #planCollectionPanel {
+            position: absolute;
+            top: calc(100% + 4px);
+            z-index: 1100;
+            width: 280px;
+            max-height: 60vh;
+            overflow-y: auto;
+            padding: 4px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+        }
+
+        #planCollectionPanel[hidden] {
+            display: none;
+        }
+
+        .planCollectionItem {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 8px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #1C3F75;
+            cursor: pointer;
+        }
+
+        .planCollectionItem:hover {
+            background-color: #e8eef8;
+        }
+
+        .planCollectionEmpty a {
+            color: #4B77BE;
+        }
+
         .planOpenItem {
             display: block;
             width: 100%;
@@ -238,6 +276,7 @@
     <button id="btnSettings" onclick="window.location.href='{{ url_for('pages.appsettings') }}'">Settings</button>
     <button id="btnStatistics" onclick="window.location.href='{{ url_for('pages.statistics') }}'">Statistik</button>
     <button id="btnGallery" onclick="window.location.href='{{ url_for('pages.gallery') }}'">Galerie</button>
+    <button id="btnCollections" onclick="window.location.href='{{ url_for('pages.collections') }}'">Sammlungen</button>
     <button id="btnPlanning" onclick="window.location.href='{{ url_for('pages.tour_planning') }}'">Planen</button>
 </div>
 
@@ -290,6 +329,15 @@
                 {% endfor %}
             </select>
         </div>
+        <div class="toolGroup" id="toolGroupCollections">
+            <button class="toolButton" id="btnPlanCollections" title="Track Sammlungen zuordnen" disabled>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 3l9 5-9 5-9-5z"/>
+                    <path d="M3 13l9 5 9-5"/>
+                </svg>
+                Sammlungen
+            </button>
+        </div>
         <div class="toolGroup" id="toolGroupDelete">
             <button class="toolButton danger" id="btnPlanDelete" title="Aktuelle Planung löschen" disabled>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -302,6 +350,7 @@
         </div>
         <div id="planStatus"></div>
         <div id="planOpenPanel" hidden></div>
+        <div id="planCollectionPanel" hidden></div>
     </div>
 
     <div id="planningMap"></div>
@@ -322,6 +371,9 @@
 <script>
     window.onload = async function() {
         const homebase = {{ homebase|tojson }};
+        // Per ?plan=<id> angeforderte Planung, z. B. aus einer Sammlung
+        const OPEN_PLAN_ID = {{ open_plan_id|tojson }};
+        const COLLECTIONS_URL = {{ url_for('pages.collections')|tojson }};
         const DRAFT_SAVE_DELAY_MS = 800;
         const TRACK_COLOR = "#1C3F75";
         const UNROUTED_COLOR = "#c0392b";
@@ -339,6 +391,8 @@
         const btnNew = document.getElementById("btnPlanNew");
         const btnOpen = document.getElementById("btnPlanOpen");
         const openPanel = document.getElementById("planOpenPanel");
+        const btnCollections = document.getElementById("btnPlanCollections");
+        const collectionPanel = document.getElementById("planCollectionPanel");
         const btnSave = document.getElementById("btnPlanSave");
         const btnDelete = document.getElementById("btnPlanDelete");
         const selActivity = document.getElementById("selPlanActivity");
@@ -456,6 +510,11 @@
             selActivity.disabled = !plan;
             btnUndo.disabled = !plan || !track.points.length;
             btnExport.disabled = !plan || !track.points.length;
+            // Zuordnen erst nach dem ersten Speichern, dann hat der Track einen Namen
+            btnCollections.disabled = !plan || !plan.saved_at;
+            btnCollections.title = btnCollections.disabled && plan
+                ? "Den Track zuerst speichern, dann kann er Sammlungen zugeordnet werden"
+                : "Track Sammlungen zuordnen";
             statusEl.classList.toggle("dirty", !!(plan && plan.dirty));
             if (message) {
                 statusEl.textContent = message;
@@ -690,7 +749,7 @@
                 pointDragged = false;
                 return;
             }
-            if (!openPanel.hidden || !plan) return;
+            if (panelOpen() || !plan) return;
             const generation = trackGeneration;
             routingChain = routingChain.then(() => insertTrackPoint(segment, event.latlng, generation));
         }
@@ -887,8 +946,8 @@
                 pointDragged = false;
                 return;
             }
-            // Klick schließt nur die offene Auswahlliste von "Öffnen"
-            if (!openPanel.hidden) return;
+            // Klick schließt nur die offene Auswahlliste von "Öffnen" bzw. "Sammlungen"
+            if (panelOpen()) return;
             if (!plan) {
                 updateStatus("Zum Zeichnen zuerst mit „Neu“ eine Planung beginnen");
                 return;
@@ -923,6 +982,11 @@
 
         function closeOpenPanel() {
             openPanel.hidden = true;
+            collectionPanel.hidden = true;
+        }
+
+        function panelOpen() {
+            return !openPanel.hidden || !collectionPanel.hidden;
         }
 
         async function openPlan(planId) {
@@ -978,6 +1042,7 @@
                 closeOpenPanel();
                 return;
             }
+            closeOpenPanel();
             try {
                 const response = await fetch("/api/tour-plans");
                 const data = await response.json();
@@ -992,8 +1057,74 @@
             }
         });
 
+        async function setCollectionAssignment(collectionId, planId, checkbox) {
+            const assigned = checkbox.checked;
+            try {
+                const response = await fetch("/api/collections/" + collectionId + "/tour-plans/" + planId, {
+                    method: assigned ? "PUT" : "DELETE"
+                });
+                const data = await response.json();
+                if (!response.ok || data.status !== "ok") {
+                    throw new Error(data.message || data.error || ("HTTP " + response.status));
+                }
+            } catch (e) {
+                console.error("Fehler beim Zuordnen zur Sammlung:", e);
+                checkbox.checked = !assigned;
+                updateStatus("Zuordnung zur Sammlung fehlgeschlagen");
+            }
+        }
+
+        function renderCollectionPanel(collections, planId) {
+            collectionPanel.replaceChildren();
+            if (!collections.length) {
+                const empty = document.createElement("div");
+                empty.className = "planOpenEmpty planCollectionEmpty";
+                const link = document.createElement("a");
+                link.href = COLLECTIONS_URL;
+                link.textContent = "Sammlungen";
+                empty.append("Noch keine Sammlungen – unter ", link, " anlegen");
+                collectionPanel.appendChild(empty);
+                return;
+            }
+            collections.forEach(c => {
+                const item = document.createElement("label");
+                item.className = "planCollectionItem";
+                const checkbox = document.createElement("input");
+                checkbox.type = "checkbox";
+                checkbox.checked = c.assigned;
+                checkbox.addEventListener("change", () => setCollectionAssignment(c.id, planId, checkbox));
+                item.append(checkbox, c.name);
+                collectionPanel.appendChild(item);
+            });
+        }
+
+        btnCollections.addEventListener("click", async (event) => {
+            event.stopPropagation();
+            if (!collectionPanel.hidden) {
+                closeOpenPanel();
+                return;
+            }
+            closeOpenPanel();
+            if (!plan || !plan.saved_at) return;
+            try {
+                const response = await fetch("/api/tour-plans/" + plan.id + "/collections");
+                const data = await response.json();
+                if (!response.ok || data.status !== "ok") {
+                    throw new Error(data.message || data.error || ("HTTP " + response.status));
+                }
+                renderCollectionPanel(data.collections, plan.id);
+                // Liste unter dem Button ausrichten
+                collectionPanel.style.left = btnCollections.parentElement.offsetLeft + "px";
+                collectionPanel.hidden = false;
+            } catch (e) {
+                console.error("Fehler beim Laden der Sammlungen:", e);
+                updateStatus("Sammlungen konnten nicht geladen werden");
+            }
+        });
+
         document.addEventListener("click", (event) => {
             if (!openPanel.hidden && !openPanel.contains(event.target)) closeOpenPanel();
+            if (!collectionPanel.hidden && !collectionPanel.contains(event.target)) closeOpenPanel();
         });
         document.addEventListener("keydown", (event) => {
             if (event.key === "Escape") closeOpenPanel();
@@ -1083,12 +1214,24 @@
             });
         });
 
-        // Zuletzt bearbeitete Session fortsetzen, sonst Kartenausschnitt der Homebase
-        try {
-            const response = await fetch("/api/tour-plans/current");
-            plan = (await response.json()).plan || null;
-        } catch (e) {
-            console.error("Fehler beim Laden der Planung:", e);
+        // Angeforderte Planung öffnen, sonst die zuletzt bearbeitete Session fortsetzen;
+        // ohne Session bleibt der Kartenausschnitt der Homebase
+        if (OPEN_PLAN_ID) {
+            try {
+                plan = await api("/api/tour-plans/" + OPEN_PLAN_ID + "/open", "POST");
+            } catch (e) {
+                console.error("Fehler beim Öffnen der Planung " + OPEN_PLAN_ID + ":", e);
+            }
+            // Parameter entfernen, damit ein Neuladen mit der dann aktuellen Session weitermacht
+            history.replaceState(null, "", window.location.pathname);
+        }
+        if (!plan) {
+            try {
+                const response = await fetch("/api/tour-plans/current");
+                plan = (await response.json()).plan || null;
+            } catch (e) {
+                console.error("Fehler beim Laden der Planung:", e);
+            }
         }
 
         loadTrack();

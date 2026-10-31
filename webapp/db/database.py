@@ -163,6 +163,55 @@ def _ensure_tour_plans_table(cursor):
     print("Tabelle tour_plans angelegt.")
 
 
+def _ensure_collections_table(cursor):
+    cursor.execute("SHOW TABLES LIKE 'collections'")
+    if cursor.fetchone():
+        return
+
+    # Sammlungen: Ordnungsbegriff für eine Menge von Touren, optional mit Bild (direkt in der
+    # Tabelle gespeichert); siehe Create_Table_Collections.sql
+    cursor.execute(
+        """
+        CREATE TABLE `collections` (
+          `id` int NOT NULL AUTO_INCREMENT,
+          `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+          `image` mediumblob,
+          `image_mimetype` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+          `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (`id`),
+          UNIQUE KEY `uq_collections_name` (`name`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        """
+    )
+    print("Tabelle collections angelegt.")
+
+
+def _ensure_collection_tour_plans_table(cursor):
+    cursor.execute("SHOW TABLES LIKE 'collection_tour_plans'")
+    if cursor.fetchone():
+        return
+
+    # Zuordnung geplanter Tracks (tour_plans) zu Sammlungen; ein Track kann in mehreren
+    # Sammlungen liegen. Wird eine Sammlung oder Planung gelöscht, entfällt die Zuordnung.
+    # Siehe Create_Table_CollectionTourPlans.sql
+    cursor.execute(
+        """
+        CREATE TABLE `collection_tour_plans` (
+          `collection_id` int NOT NULL,
+          `tour_plan_id` int NOT NULL,
+          `added_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (`collection_id`, `tour_plan_id`),
+          KEY `idx_collection_tour_plans_plan` (`tour_plan_id`),
+          CONSTRAINT `fk_collection_tour_plans_collection` FOREIGN KEY (`collection_id`)
+            REFERENCES `collections` (`id`) ON DELETE CASCADE,
+          CONSTRAINT `fk_collection_tour_plans_plan` FOREIGN KEY (`tour_plan_id`)
+            REFERENCES `tour_plans` (`id`) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        """
+    )
+    print("Tabelle collection_tour_plans angelegt.")
+
+
 # Homebase (Mittelpunkt und Zoomstufe der Karte auf der Tourplanungsseite); Startwert München-Zentrum
 HOMEBASE_SETTINGS = {
     "homebase.lat": ("48.137", "Breitengrad der Homebase (Kartenmitte Tourplanung)"),
@@ -244,6 +293,8 @@ def ensure_database():
         _ensure_default_bike_trigger(cursor)
         _ensure_planning_settings(cursor)
         _ensure_tour_plans_table(cursor)
+        _ensure_collections_table(cursor)
+        _ensure_collection_tour_plans_table(cursor)
         conn.commit()
     except mysql.connector.Error as err:
         print(f"Datenbankfehler beim Start: {err}")
