@@ -51,6 +51,14 @@ h2, h3 {
     white-space: nowrap;
 }
 
+/* Füllt den freien Platz zwischen der oberen Button-Gruppe und der unteren
+   (Ziele, Bikes, Settings), sodass die untere Gruppe am unteren Rand sitzt.
+   min-height sorgt für einen Mindestabstand bei kleiner Fensterhöhe. */
+#MainMenuDashboard .menuSpacer {
+    flex: 1 1 auto;
+    min-height: 16px;
+}
+
 /* Seiteninhalt mit Abstand zur Sidebar */
 #pageContent {
     margin-left: 120px;
