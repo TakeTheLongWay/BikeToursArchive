@@ -5,11 +5,17 @@
     <title>Sammlung {{ collection.name }}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <style>
-        /* Kopf und Trackkarte gleich breit: 900px Inhalt + 2 x 25px Innenabstand + 4px Rand der Karte */
-        .collection-header,
+        /* Trackkarte: 900px Inhalt + 2 x 25px Innenabstand + 4px Rand der Karte;
+           Kopf mit Bild so breit wie Zusammenfassung (280px) + Abstand (24px) + Trackkarte */
         .collection-card {
             box-sizing: border-box;
             max-width: 954px;
+        }
+
+        .collection-header,
+        .collection-layout {
+            box-sizing: border-box;
+            max-width: 1258px;
         }
 
         .collection-header {
@@ -22,7 +28,6 @@
             grid-template-columns: 280px minmax(0, 954px);
             gap: 24px;
             align-items: start;
-            margin-top: 12px;
         }
 
         @media (max-width: 1200px) {
@@ -320,6 +325,21 @@
     {% macro de_num(value, decimals=0) -%}
         {{ ("{:,." ~ decimals ~ "f}").format(value).replace(",", "X").replace(".", ",").replace("X", ".") }}
     {%- endmacro %}
+    <!-- Kopf mit Bild über die volle Breite beider Tabellen -->
+    <div class="collection-header">
+        {% if collection.has_image %}
+            <img class="collection-header-image" src="{{ url_for('pages.collection_image', collection_id=collection.id) }}" alt="{{ collection.name }}">
+        {% endif %}
+        <div class="collection-title-row">
+            <h1 class="title">{{ collection.name }}</h1>
+            <div class="collection-header-actions">
+                <button type="button" class="btn-edit" id="collectionEdit">Bearbeiten</button>
+                <button type="button" class="btn-delete" id="collectionDelete">Löschen</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Zusammenfassung links, Einzeltouren rechts; beide beginnen auf derselben Höhe -->
     <div class="collection-layout">
     <aside class="collection-summary">
         <h2>Zusammenfassung</h2>
@@ -341,20 +361,6 @@
         </table>
         <p class="collection-summary-note" id="summaryNote">Fahrzeit geschätzt aus Gesamtdistanz und angenommener Ø-Geschwindigkeit.</p>
     </aside>
-
-    <div class="collection-main">
-    <div class="collection-header">
-        {% if collection.has_image %}
-            <img class="collection-header-image" src="{{ url_for('pages.collection_image', collection_id=collection.id) }}" alt="{{ collection.name }}">
-        {% endif %}
-        <div class="collection-title-row">
-            <h1 class="title">{{ collection.name }}</h1>
-            <div class="collection-header-actions">
-                <button type="button" class="btn-edit" id="collectionEdit">Bearbeiten</button>
-                <button type="button" class="btn-delete" id="collectionDelete">Löschen</button>
-            </div>
-        </div>
-    </div>
 
     <div class="collection-card">
         <div class="msg-error" id="collectionError" hidden></div>
@@ -416,7 +422,6 @@
                 <button type="submit" id="gpxImportButton">Importieren</button>
             </div>
         </form>
-    </div>
     </div>
     </div>
     </div>
