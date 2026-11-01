@@ -563,11 +563,13 @@ def collection_detail(cursor, collection_id):
         FROM collection_tour_plans ctp
         JOIN tour_plans p ON p.id = ctp.tour_plan_id
         WHERE ctp.collection_id = %s
-        ORDER BY p.name ASC
         """,
         (collection_id,),
     )
-    tracks = [_plan_track_summary(row) for row in cursor.fetchall()]
+    # Sortierung in Python: ein ORDER BY würde die großen JSON-Spalten in den Sort-Puffer
+    # laden und bei umfangreichen Tracks "Out of sort memory" auslösen
+    rows = sorted(cursor.fetchall(), key=lambda r: ((r["name"] or "").casefold(), r["id"]))
+    tracks = [_plan_track_summary(row) for row in rows]
 
     # Auswahl zum Hinzufügen: gespeicherte Tracks, die noch nicht in der Sammlung liegen
     cursor.execute(

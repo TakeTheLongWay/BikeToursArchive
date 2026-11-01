@@ -141,7 +141,12 @@ def _fetch_plan(cursor, plan_id):
 
 def _fetch_current_plan(cursor):
     # Aktuell ist die zuletzt bearbeitete (oder geöffnete) Session
-    cursor.execute(f"SELECT {PLAN_COLUMNS} FROM tour_plans ORDER BY updated_at DESC, id DESC LIMIT 1")
+    # Erst nur die id ermitteln: ein ORDER BY über alle Spalten würde die großen JSON-Spalten
+    # in den Sort-Puffer laden und bei umfangreichen Tracks "Out of sort memory" auslösen
+    cursor.execute(
+        f"SELECT {PLAN_COLUMNS} FROM tour_plans "
+        "WHERE id = (SELECT id FROM tour_plans ORDER BY updated_at DESC, id DESC LIMIT 1)"
+    )
     return cursor.fetchone()
 
 
@@ -163,8 +168,9 @@ def api_tour_plan_current(cursor):
 @planning_bp.route("/api/tour-plans", methods=["GET"])
 @mysql_connection_wrapper
 def api_tour_plan_list(cursor):
-    cursor.execute(f"SELECT {PLAN_COLUMNS} FROM tour_plans ORDER BY updated_at DESC, id DESC")
-    rows = cursor.fetchall() or []
+    # Sortierung in Python (siehe _fetch_current_plan: kein ORDER BY über die JSON-Spalten)
+    cursor.execute(f"SELECT {PLAN_COLUMNS} FROM tour_plans")
+    rows = sorted(cursor.fetchall() or [], key=lambda r: (r["updated_at"], r["id"]), reverse=True)
     return jsonify({"status": "ok", "plans": [_plan_to_dict(r) for r in rows]})
 
 
