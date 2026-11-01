@@ -186,6 +186,18 @@ def _ensure_collections_table(cursor):
     print("Tabelle collections angelegt.")
 
 
+def _ensure_collection_avg_speed_column(cursor):
+    cursor.execute("SHOW COLUMNS FROM collections LIKE 'avg_speed_kmh'")
+    if cursor.fetchone():
+        return
+
+    # Angenommene Ø-Geschwindigkeit der Sammlung, aus der die Gesamtfahrzeit geschätzt wird
+    cursor.execute(
+        "ALTER TABLE collections ADD COLUMN `avg_speed_kmh` decimal(4,1) NOT NULL DEFAULT 20.0"
+    )
+    print("Spalte collections.avg_speed_kmh angelegt.")
+
+
 def _ensure_collection_tour_plans_table(cursor):
     cursor.execute("SHOW TABLES LIKE 'collection_tour_plans'")
     if cursor.fetchone():
@@ -294,6 +306,7 @@ def ensure_database():
         _ensure_planning_settings(cursor)
         _ensure_tour_plans_table(cursor)
         _ensure_collections_table(cursor)
+        _ensure_collection_avg_speed_column(cursor)
         _ensure_collection_tour_plans_table(cursor)
         conn.commit()
     except mysql.connector.Error as err:

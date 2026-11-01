@@ -76,6 +76,26 @@ def api_collection_remove_plan(cursor, collection_id, plan_id):
     return jsonify({"status": "ok"})
 
 
+# ── PUT angenommene Ø-Geschwindigkeit der Sammlung (Basis der geschätzten Fahrzeit) ──
+@collections_bp.route("/api/collections/<int:collection_id>/avg-speed", methods=["PUT"])
+@mysql_connection_wrapper
+def api_collection_avg_speed(cursor, collection_id):
+    if not _collection_exists(cursor, collection_id):
+        return jsonify({"status": "error", "message": "Sammlung nicht gefunden."}), 404
+
+    data = request.get_json(silent=True) or {}
+    try:
+        speed = round(float(str(data.get("avg_speed_kmh")).replace(",", ".")), 1)
+    except (TypeError, ValueError):
+        speed = None
+    # decimal(4,1): höchstens 999,9
+    if speed is None or not 0 < speed < 1000:
+        return jsonify({"status": "error", "message": "Bitte eine Geschwindigkeit zwischen 0,1 und 999,9 km/h angeben."}), 400
+
+    cursor.execute("UPDATE collections SET avg_speed_kmh = %s WHERE id = %s", (speed, collection_id))
+    return jsonify({"status": "ok", "avg_speed_kmh": speed})
+
+
 # ── POST externe GPX-Dateien als gespeicherte Tracks importieren und der Sammlung zuordnen ──
 @collections_bp.route("/api/collections/<int:collection_id>/import-gpx", methods=["POST"])
 @mysql_connection_wrapper

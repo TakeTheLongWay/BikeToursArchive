@@ -16,6 +16,86 @@
             margin-bottom: 16px;
         }
 
+        /* Links die Zusammenfassung, rechts Kopf mit Bild und Trackliste; schmal untereinander */
+        .collection-layout {
+            display: grid;
+            grid-template-columns: 280px minmax(0, 954px);
+            gap: 24px;
+            align-items: start;
+            margin-top: 12px;
+        }
+
+        @media (max-width: 1200px) {
+            .collection-layout {
+                grid-template-columns: minmax(0, 954px);
+            }
+        }
+
+        .collection-summary {
+            box-sizing: border-box;
+            background: #fff;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            border-left: 4px solid #4B77BE;
+        }
+
+        .collection-summary h2 {
+            margin: 0 0 12px;
+            font-size: 16px;
+            color: #1C3F75;
+        }
+
+        .collection-summary table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .collection-summary th,
+        .collection-summary td {
+            padding: 8px 4px;
+            border-bottom: 1px solid #e0e6f0;
+            font-size: 14px;
+        }
+
+        .collection-summary th {
+            text-align: left;
+            font-weight: normal;
+            color: #666;
+        }
+
+        .collection-summary td {
+            text-align: right;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .collection-summary tr:last-child th,
+        .collection-summary tr:last-child td {
+            border-bottom: none;
+        }
+
+        .collection-summary input[type="number"] {
+            width: 64px;
+            padding: 4px 6px;
+            border: 1px solid #c0d3e9;
+            border-radius: 6px;
+            background-color: #f9fbfd;
+            font-size: 14px;
+            font-weight: 600;
+            text-align: right;
+        }
+
+        .collection-summary-note {
+            margin: 10px 0 0;
+            font-size: 12px;
+            color: #888;
+        }
+
+        .collection-summary-note.error {
+            color: #c0392b;
+        }
+
         .collection-title-row {
             display: flex;
             flex-wrap: wrap;
@@ -237,6 +317,32 @@
 
     <!-- Ansicht der Sammlung; bei einem Fehler im Formular wird direkt das Formular gezeigt -->
     <div id="collectionContent" {% if error %}hidden{% endif %}>
+    {% macro de_num(value, decimals=0) -%}
+        {{ ("{:,." ~ decimals ~ "f}").format(value).replace(",", "X").replace(".", ",").replace("X", ".") }}
+    {%- endmacro %}
+    <div class="collection-layout">
+    <aside class="collection-summary">
+        <h2>Zusammenfassung</h2>
+        <table>
+            <tbody>
+                <tr><th>Gesamtdistanz</th><td>{{ de_num(summary.distance_km, 1) }} km</td></tr>
+                <tr><th>Gesamtanstieg</th><td>{{ de_num(summary.ascent_m) }} m</td></tr>
+                <tr><th>Einzeltouren</th><td>{{ summary.count }}</td></tr>
+                <tr>
+                    <th><label for="avgSpeedInput">Ø Geschwindigkeit</label></th>
+                    <td>
+                        <input type="number" id="avgSpeedInput" min="0.1" max="999.9" step="0.5"
+                               value="{{ '%.1f' | format(summary.avg_speed_kmh) }}"
+                               title="Angenommene Durchschnittsgeschwindigkeit (wird gespeichert)"> km/h
+                    </td>
+                </tr>
+                <tr><th>Gesamtfahrzeit</th><td><span id="summaryDuration">{{ summary.duration_hm }}</span> h</td></tr>
+            </tbody>
+        </table>
+        <p class="collection-summary-note" id="summaryNote">Fahrzeit geschätzt aus Gesamtdistanz und angenommener Ø-Geschwindigkeit.</p>
+    </aside>
+
+    <div class="collection-main">
     <div class="collection-header">
         {% if collection.has_image %}
             <img class="collection-header-image" src="{{ url_for('pages.collection_image', collection_id=collection.id) }}" alt="{{ collection.name }}">
@@ -310,6 +416,8 @@
                 <button type="submit" id="gpxImportButton">Importieren</button>
             </div>
         </form>
+    </div>
+    </div>
     </div>
     </div>
 
@@ -439,6 +547,58 @@
         } finally {
             importButton.disabled = false;
             importButton.textContent = "Importieren";
+        }
+    });
+
+    // Angenommene Ø-Geschwindigkeit: Fahrzeit sofort neu berechnen und den Wert speichern
+    const TOTAL_KM = {{ summary.distance_km | round(3) }};
+    const avgSpeedInput = document.getElementById("avgSpeedInput");
+    const summaryDuration = document.getElementById("summaryDuration");
+    const summaryNote = document.getElementById("summaryNote");
+    const SUMMARY_NOTE_TEXT = summaryNote.textContent;
+
+    function formatHm(hours) {
+        const totalMinutes = Math.floor(hours * 60);
+        const h = Math.floor(totalMinutes / 60);
+        const m = totalMinutes % 60;
+        return String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0");
+    }
+
+    function parseSpeed() {
+        const speed = parseFloat(String(avgSpeedInput.value).replace(",", "."));
+        return speed > 0 && speed < 1000 ? speed : null;
+    }
+
+    avgSpeedInput.addEventListener("input", () => {
+        const speed = parseSpeed();
+        if (speed) summaryDuration.textContent = formatHm(TOTAL_KM / speed);
+    });
+
+    avgSpeedInput.addEventListener("change", async () => {
+        summaryNote.classList.remove("error");
+        summaryNote.textContent = SUMMARY_NOTE_TEXT;
+        const speed = parseSpeed();
+        if (!speed) {
+            summaryNote.textContent = "Bitte eine Geschwindigkeit zwischen 0,1 und 999,9 km/h angeben.";
+            summaryNote.classList.add("error");
+            return;
+        }
+        try {
+            const response = await fetch(`/api/collections/${COLLECTION_ID}/avg-speed`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ avg_speed_kmh: speed })
+            });
+            const data = await response.json();
+            if (!response.ok || data.status !== "ok") {
+                throw new Error(data.message || data.error || ("HTTP " + response.status));
+            }
+            avgSpeedInput.value = data.avg_speed_kmh.toFixed(1);
+            summaryDuration.textContent = formatHm(TOTAL_KM / data.avg_speed_kmh);
+        } catch (e) {
+            console.error("Fehler beim Speichern der Geschwindigkeit:", e);
+            summaryNote.textContent = "Speichern fehlgeschlagen: " + e.message;
+            summaryNote.classList.add("error");
         }
     });
 

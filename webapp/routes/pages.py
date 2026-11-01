@@ -525,7 +525,7 @@ def track_detail(cursor, plan_id):
 @mysql_connection_wrapper
 def collection_detail(cursor, collection_id):
     cursor.execute(
-        "SELECT id, name, image IS NOT NULL AS has_image FROM collections WHERE id = %s",
+        "SELECT id, name, image IS NOT NULL AS has_image, avg_speed_kmh FROM collections WHERE id = %s",
         (collection_id,),
     )
     collection = cursor.fetchone()
@@ -571,6 +571,17 @@ def collection_detail(cursor, collection_id):
     rows = sorted(cursor.fetchall(), key=lambda r: ((r["name"] or "").casefold(), r["id"]))
     tracks = [_plan_track_summary(row) for row in rows]
 
+    # Zusammenfassung; die Fahrzeit ist aus Gesamtdistanz und angenommener Ø-Geschwindigkeit geschätzt
+    avg_speed_kmh = float(collection["avg_speed_kmh"])
+    total_km = sum(t["distance_km"] for t in tracks)
+    summary = {
+        "distance_km": total_km,
+        "ascent_m": sum(t["ascent_m"] for t in tracks),
+        "count": len(tracks),
+        "avg_speed_kmh": avg_speed_kmh,
+        "duration_hm": format_duration_hm(total_km / avg_speed_kmh * 3600),
+    }
+
     # Auswahl zum Hinzufügen: gespeicherte Tracks, die noch nicht in der Sammlung liegen
     cursor.execute(
         """
@@ -585,6 +596,7 @@ def collection_detail(cursor, collection_id):
         "collection_detail.html",
         collection=collection,
         tracks=tracks,
+        summary=summary,
         available_plans=cursor.fetchall(),
         activities=current_app.config["PLANNING_ACTIVITIES"],
         error=error,
